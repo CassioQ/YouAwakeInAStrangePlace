@@ -1,7 +1,12 @@
 import { Character } from "./Character.types";
 import { ScreenEnum, UserRole } from "./enums/CommomEnuns";
+import { User as FirebaseUser } from "firebase/auth"; // Import Firebase User type
 
 export interface AppContextType {
+  currentUser: FirebaseUser | null;
+  isLoadingAuth: boolean;
+  // setUser: (user: FirebaseUser | null) => void; // Handled by onAuthStateChanged
+
   userRole: UserRole | null;
   setUserRole: (role: UserRole | null) => void;
 
@@ -18,4 +23,9 @@ export interface AppContextType {
   finalizeCharacter: () => Character | null;
   createdCharacter: Character | null;
   setCreatedCharacter: (character: Character | null) => void;
+
+  // Auth functions
+  loginWithGoogle: () => Promise<FirebaseUser | null>;
+  loginWithFacebook: () => Promise<FirebaseUser | null>;
+  logout: () => Promise<void>;
 }

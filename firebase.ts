@@ -1,6 +1,19 @@
 // Import the functions you need from the SDKs you need
-import { FirebaseApp, initializeApp } from "firebase/app";
-import { getFunctions } from "firebase/functions";
+import { initializeApp, type FirebaseApp } from "firebase/app"; // Changed import
+import {
+  getAuth,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  type User, // Changed to type import
+} from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 import {
   FB_API_KEY,
@@ -28,10 +41,23 @@ const firebaseConfig = {
   databaseURL: FB_DATABASE_URL,
 };
 
-const app = initializeApp(firebaseConfig);
+const app: FirebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-const functionsInstance = getFunctions(app, "sua-regiao"); // Especifique a região se necessário
+const functionsInstance = getFunctions(app); // Specify region if necessary e.g. getFunctions(app, "us-central1")
+
+// Export auth providers and functions
+export {
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  type User, // Export as type
+};
 
 // Exemplo de como preparar uma função callable
 export const callCreateGameSession = httpsCallable(
@@ -46,16 +72,4 @@ export const callProcessPlayerAction = httpsCallable(
   functionsInstance,
   "processPlayerAction"
 );
-
-function getAuth(app: FirebaseApp) {
-  throw new Error("Function not implemented.");
-}
-
-function getFirestore(app: FirebaseApp) {
-  throw new Error("Function not implemented.");
-}
-
-function httpsCallable(functionsInstance: any, arg1: string) {
-  throw new Error("Function not implemented.");
-}
 // Adicione outras funções callable conforme necessário

@@ -4,6 +4,9 @@ export enum UserRole {
 }
 
 export enum ScreenEnum {
+  LOGIN = "LOGIN",
+  EMAIL_LOGIN = "EMAIL_LOGIN",
+  EMAIL_SIGNUP = "EMAIL_SIGNUP",
   HOME = "HOME",
   ACCESS_SERVER = "ACCESS_SERVER", // For GM or Player joining existing game
   CHARACTER_CREATE_THEME = "CHARACTER_CREATE_THEME",

@@ -1,13 +1,23 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState, useEffect, useContext } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Platform,
+} from "react-native";
 import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
+import { AppContext } from "../contexts/AppContexts";
+import { ScreenEnum } from "../models/enums/CommomEnuns";
 
 interface PageHeaderProps {
   title: string;
 }
 
 const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
+  const context = useContext(AppContext);
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -29,13 +39,46 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
     return () => clearInterval(timer);
   }, []);
 
+  const handleMenuPress = () => {
+    if (context?.currentUser) {
+      if (Platform.OS === "web") {
+        context.logout();
+      } else {
+        handleLogoutApp();
+      }
+    } else {
+      console.log("Menu pressed (not logged in)");
+      context?.navigateTo(ScreenEnum.LOGIN);
+    }
+  };
+
+  const handleLogoutApp = () => {
+    if (context?.currentUser) {
+      Alert.alert(
+        "Logout",
+        "Tem certeza que deseja sair?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Sair", onPress: () => context.logout() },
+        ],
+        { cancelable: true }
+      );
+    } else {
+      Alert.alert("Atenção", "Você não está logado.");
+    }
+  };
+
   return (
     <View style={styles.headerContainer}>
       <TouchableOpacity
         style={styles.menuButton}
-        onPress={() => console.log("Menu pressed")}
+        accessibilityLabel={
+          context?.currentUser ? "Abrir menu de logout" : "Abrir menu"
+        }
       >
-        <Text style={styles.iconText}>☰</Text>
+        <Text onPress={handleMenuPress} style={styles.iconText}>
+          ☰
+        </Text>
       </TouchableOpacity>
       <Text
         style={[
@@ -46,11 +89,6 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
       >
         {title}
       </Text>
-      <View style={styles.statusIcons}>
-        <Text style={styles.statusText}>{currentTime}</Text>
-        <Text style={styles.iconText}>📶</Text>
-        <Text style={styles.iconText}>🔋</Text>
-      </View>
     </View>
   );
 };

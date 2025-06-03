@@ -1,9 +1,20 @@
 import React, { useContext } from "react";
-import { View, Text, StyleSheet, StatusBar } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  StatusBar,
+  ActivityIndicator,
+} from "react-native";
 
 import { colors } from "./styles/colors";
 import { AppContext, AppProvider } from "./contexts/AppContexts";
 import { ScreenEnum } from "./models/enums/CommomEnuns";
+
+// Import screens
+import LoginScreen from "./pages/login/LoginScreen";
+import EmailLoginScreen from "./pages/login/EmailLoginScreen";
+import EmailSignUpScreen from "./pages/login/EmailSignUpScreen";
 import AccessScreen from "./pages/AccessScreen";
 import CharacterDevDetailsScreen from "./pages/CharacterDevDetailsScreen";
 import CharacterDevNameDescScreen from "./pages/CharacterDevNameDescScreen";
@@ -15,15 +26,41 @@ const AppContent: React.FC = () => {
   const context = useContext(AppContext);
 
   if (!context) {
+    // Should not happen if AppProvider is set up correctly
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading context...</Text>
+        <Text>Error: Context not available.</Text>
       </View>
     );
   }
 
-  const { currentScreen } = context;
+  const { currentUser, isLoadingAuth, currentScreen } = context;
 
+  if (isLoadingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Verificando sessão...</Text>
+      </View>
+    );
+  }
+
+  if (!currentUser) {
+    // User is not authenticated, show auth screens
+    switch (currentScreen) {
+      case ScreenEnum.LOGIN:
+        return <LoginScreen />;
+      case ScreenEnum.EMAIL_LOGIN:
+        return <EmailLoginScreen />;
+      case ScreenEnum.EMAIL_SIGNUP:
+        return <EmailSignUpScreen />;
+      default:
+        // Fallback to LoginScreen if no user and currentScreen is not an auth one
+        return <LoginScreen />;
+    }
+  }
+
+  // User is authenticated, show app screens
   switch (currentScreen) {
     case ScreenEnum.HOME:
       return <HomeScreen />;
@@ -38,7 +75,15 @@ const AppContent: React.FC = () => {
     case ScreenEnum.CHARACTER_SHEET:
       return <CharacterSheetScreen />;
     default:
-      return <HomeScreen />;
+      // If logged in and currentScreen is an auth screen, redirect to HOME
+      if (
+        currentScreen === ScreenEnum.LOGIN ||
+        currentScreen === ScreenEnum.EMAIL_LOGIN ||
+        currentScreen === ScreenEnum.EMAIL_SIGNUP
+      ) {
+        return <HomeScreen />;
+      }
+      return <HomeScreen />; // Fallback for any other case
   }
 };
 
@@ -59,6 +104,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: colors.backgroundDefault,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
 });
 
