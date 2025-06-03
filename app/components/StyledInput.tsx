@@ -1,70 +1,89 @@
-import React from 'react';
-import TextField, { TextFieldProps } from '@mui/material/TextField';
-import { styled } from '@mui/material/styles';
+import React from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TextInputProps,
+  StyleProp,
+  ViewStyle,
+} from "react-native";
+import { colors } from "../styles/colors";
+import { commonStyles } from "../styles/commonStyles";
 
-interface StyledInputProps extends Omit<TextFieldProps, 'variant'> {
-  // label is already part of TextFieldProps
-  containerClassName?: string; // Less relevant with TextField's own layout
+interface StyledInputProps extends TextInputProps {
+  label?: string;
+  containerStyle?: StyleProp<ViewStyle>;
+  error?: string; // For displaying error messages
 }
 
-// If you need the dashed style frequently, you can create a styled component
-const DashedTextField = styled(TextField)(({ theme }) => ({
-  '& .MuiOutlinedInput-root': {
-    '& fieldset': {
-      borderStyle: 'dashed',
-      borderWidth: '2px',
-      borderColor: theme.palette.divider, // stone-400
-    },
-    '&:hover fieldset': {
-      borderColor: theme.palette.primary.main, // Or theme.palette.grey[500]
-    },
-    '&.Mui-focused fieldset': {
-      borderColor: theme.palette.primary.main, // Or theme.palette.grey[500]
-      borderWidth: '2px', // Ensure focused border width matches
-    },
-    backgroundColor: theme.palette.background.default, // stone-50
-  },
-  '& .MuiInputLabel-root': { // Styling for the label
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    color: theme.palette.text.secondary,
-    fontWeight: 500,
-  },
-  '& .MuiInputLabel-root.Mui-focused': {
-    color: theme.palette.primary.main, // Label color when focused
-  },
-}));
-
-
-const StyledInput: React.FC<StyledInputProps> = ({ 
-  label, 
-  id, 
-  containerClassName, // We'll use margin for spacing instead
-  className, // Mapped to sx or ignored if not directly applicable
-  InputProps,
-  sx,
-  ...props 
+const StyledInput: React.FC<StyledInputProps> = ({
+  label,
+  style,
+  containerStyle,
+  error,
+  ...props
 }) => {
-  const inputId = id || props.name || label?.toString().toLowerCase().replace(/\s+/g, '-');
-  
+  const [isFocused, setIsFocused] = React.useState(false);
+
   return (
-    <DashedTextField
-      id={inputId}
-      label={label}
-      fullWidth
-      margin="normal" // Provides default spacing, replaces containerClassName="mb-6"
-      sx={{
-        // Placeholder styling if needed (MUI handles this well by default)
-        // '& .MuiInputBase-input::placeholder': {
-        //   color: 'palette.grey[400]',
-        //   opacity: 1, 
-        // },
-        ...sx
-      }}
-      InputProps={InputProps}
-      {...props}
-    />
+    <View style={[styles.container, containerStyle]}>
+      {label && (
+        <Text
+          style={[
+            styles.label,
+            commonStyles.textUppercase,
+            commonStyles.letterSpacingSmall,
+          ]}
+        >
+          {label}
+        </Text>
+      )}
+      <TextInput
+        style={[
+          styles.input,
+          commonStyles.dashedBorder,
+          isFocused && styles.inputFocused,
+          style,
+        ]}
+        placeholderTextColor={colors.textLight}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        {...props}
+      />
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: 16, // margin="normal" equivalent
+  },
+  label: {
+    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  input: {
+    height: 48, // Standard input height
+    paddingHorizontal: 12,
+    backgroundColor: colors.inputBackground,
+    borderRadius: 4, // Dashed border doesn't look good with high radius in RN
+    fontSize: 16,
+    color: colors.textPrimary,
+    borderColor: colors.inputBorder, // From commonStyles.dashedBorder
+  },
+  inputFocused: {
+    borderColor: colors.inputBorderFocused,
+    borderWidth: 1, // Ensure focus border width matches
+  },
+  errorText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: colors.error,
+  },
+});
 
 export default StyledInput;

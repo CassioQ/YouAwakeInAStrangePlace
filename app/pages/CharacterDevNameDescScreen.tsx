@@ -1,10 +1,11 @@
 import React, { useContext, useState, useEffect } from "react";
+import { View, StyleSheet, Alert, ScrollView } from "react-native";
 import ScreenWrapper from "../components/ScreenWrapper";
 import StyledInput from "../components/StyledInput";
 import StyledTextarea from "../components/StyledTextarea";
 import StyledButton from "../components/StyledButton";
-import Paper from "@mui/material/Paper";
-import Box from "@mui/material/Box";
+import { colors } from "../styles/colors";
+import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
 
@@ -38,6 +39,13 @@ const CharacterDevNameDescScreen: React.FC = () => {
   }, [characterInProgress]);
 
   const handleFinalize = () => {
+    if (!name.trim() || !primarySkillName.trim()) {
+      Alert.alert(
+        "Campos Obrigatórios",
+        "Nome do Personagem e Habilidade Principal são obrigatórios."
+      );
+      return;
+    }
     updateCharacterInProgress("name", name);
     updateCharacterInProgress("playerName", playerName || "@jogador");
     updateCharacterInProgress("description", description);
@@ -47,56 +55,67 @@ const CharacterDevNameDescScreen: React.FC = () => {
     if (character) {
       navigateTo(ScreenEnum.CHARACTER_SHEET);
     } else {
-      alert(
-        "Erro ao finalizar personagem. Nome e habilidade principal são obrigatórios."
-      );
+      Alert.alert("Erro", "Erro ao finalizar personagem. Verifique os dados.");
     }
   };
 
   return (
-    <ScreenWrapper title="FICHA" maxWidth="sm">
-      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 } }}>
-        <StyledInput
-          label="NOME PERSONAGEM"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nome do seu personagem"
-          required
-          autoFocus
-        />
-        <StyledInput
-          label="NOME JOGADOR (EX: @JOGADOR)"
-          value={playerName}
-          onChange={(e) => setPlayerName(e.target.value)}
-          placeholder="@SeuNomeDeJogador"
-        />
-        <StyledTextarea
-          label="DESCRIÇÃO"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Uma breve descrição do seu personagem..."
-          required
-          rows={3}
-        />
-        <StyledInput
-          label="HABILIDADE PRINCIPAL"
-          value={primarySkillName}
-          onChange={(e) => setPrimarySkillName(e.target.value)}
-          placeholder="Ex: Investigação, Persuasão, Combate com Lâminas"
-          required
-        />
-      </Paper>
-      <Box sx={{ mt: 3 }}>
-        <StyledButton
-          onClick={handleFinalize}
-          disabled={!name.trim() || !primarySkillName.trim()}
-          props_variant="primary"
-        >
-          OK (Finalizar Personagem)
-        </StyledButton>
-      </Box>
+    <ScreenWrapper title="FICHA">
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 20 }}
+        style={{ marginHorizontal: 10 }}
+      >
+        <View style={[styles.paper, commonStyles.shadow]}>
+          <StyledInput
+            label="NOME PERSONAGEM"
+            value={name}
+            onChangeText={setName}
+            placeholder="Nome do seu personagem"
+            autoFocus
+          />
+          <StyledInput
+            label="NOME JOGADOR (EX: @JOGADOR)"
+            value={playerName}
+            onChangeText={setPlayerName}
+            placeholder="@SeuNomeDeJogador"
+          />
+          <StyledTextarea
+            label="DESCRIÇÃO"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Uma breve descrição do seu personagem..."
+            rows={3}
+          />
+          <StyledInput
+            label="HABILIDADE PRINCIPAL"
+            value={primarySkillName}
+            onChangeText={setPrimarySkillName}
+            placeholder="Ex: Investigação, Persuasão"
+          />
+        </View>
+        <View style={styles.buttonWrapper}>
+          <StyledButton
+            onPress={handleFinalize}
+            disabled={!name.trim() || !primarySkillName.trim()}
+            props_variant="primary"
+          >
+            OK (Finalizar Personagem)
+          </StyledButton>
+        </View>
+      </ScrollView>
     </ScreenWrapper>
   );
 };
+
+const styles = StyleSheet.create({
+  paper: {
+    backgroundColor: colors.backgroundPaper,
+    padding: 20,
+    borderRadius: 8,
+  },
+  buttonWrapper: {
+    marginTop: 24,
+  },
+});
 
 export default CharacterDevNameDescScreen;

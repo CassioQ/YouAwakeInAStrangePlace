@@ -1,9 +1,10 @@
 import React, { useContext, useState, useEffect } from "react";
+import { View, StyleSheet, Alert } from "react-native";
 import ScreenWrapper from "../components/ScreenWrapper";
 import StyledInput from "../components/StyledInput";
 import StyledButton from "../components/StyledButton";
-import Paper from "@mui/material/Paper";
-import Box from "@mui/material/Box";
+import { colors } from "../styles/colors";
+import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
 
@@ -20,33 +21,49 @@ const CharacterDevThemeScreen: React.FC = () => {
   }, [characterInProgress.theme]);
 
   const handleNext = () => {
+    if (!themeInput.trim()) {
+      Alert.alert("Campo Obrigatório", "Por favor, insira a temática.");
+      return;
+    }
     updateCharacterInProgress("theme", themeInput);
     navigateTo(ScreenEnum.CHARACTER_CREATE_DETAILS);
   };
 
   return (
-    <ScreenWrapper title="DEV_PERSONAGEM" maxWidth="xs">
-      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 } }}>
+    <ScreenWrapper title="DEV_PERSONAGEM">
+      <View style={[styles.paper, commonStyles.shadow]}>
         <StyledInput
           label="TEMATICA"
           value={themeInput}
-          onChange={(e) => setThemeInput(e.target.value)}
-          placeholder="Ex: Cyberpunk, Fantasia Sombria, Espacial..."
-          required
+          onChangeText={setThemeInput}
+          placeholder="Ex: Cyberpunk, Fantasia Sombria..."
           autoFocus
         />
-      </Paper>
-      <Box sx={{ mt: 3 }}>
+      </View>
+      <View style={styles.buttonWrapper}>
         <StyledButton
-          onClick={handleNext}
+          onPress={handleNext}
           disabled={!themeInput.trim()}
           props_variant="primary"
         >
           OK
         </StyledButton>
-      </Box>
+      </View>
     </ScreenWrapper>
   );
 };
+
+const styles = StyleSheet.create({
+  paper: {
+    backgroundColor: colors.backgroundPaper,
+    padding: 20,
+    borderRadius: 8,
+    marginHorizontal: 10,
+  },
+  buttonWrapper: {
+    marginTop: 24,
+    marginHorizontal: 10,
+  },
+});
 
 export default CharacterDevThemeScreen;

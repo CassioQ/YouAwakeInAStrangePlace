@@ -1,36 +1,71 @@
-import React, { ReactNode } from 'react';
-import PageHeader from './PageHeader';
-import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
+import React, { ReactNode } from "react";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  Dimensions,
+} from "react-native";
+import PageHeader from "./PageHeader";
+import { colors } from "../styles/colors";
 
 interface ScreenWrapperProps {
   title: string;
-  children: ReactNode;
-  maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
+  children?: ReactNode;
   disableGutters?: boolean;
 }
 
-const ScreenWrapper: React.FC<ScreenWrapperProps> = ({ title, children, maxWidth = 'md', disableGutters = false }) => {
+const screenWidth = Dimensions.get("window").width;
+const MAX_CONTENT_WIDTH = 500; // Equivalent to 'sm' in MUI
+
+const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
+  title,
+  children,
+  disableGutters = false,
+}) => {
+  const contentMaxWidth =
+    title === "HOME"
+      ? screenWidth
+      : Math.min(screenWidth * 0.9, MAX_CONTENT_WIDTH);
+
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+    <SafeAreaView style={styles.safeArea}>
       <PageHeader title={title} />
-      <Container
-        component="main"
-        maxWidth={maxWidth}
-        disableGutters={disableGutters}
-        sx={{ 
-          flexGrow: 1, 
-          py: { xs: 2, md: 3 }, // p-6 md:p-8 equivalent
-          px: { xs: 2, md: 3 } 
-        }}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          disableGutters ? {} : styles.gutters,
+        ]}
+        keyboardShouldPersistTaps="handled" // Good practice for scrollviews with inputs
       >
-         {/* Centering content if maxWdith is 'md' or less, similar to previous max-w-md mx-auto */}
-        <Box sx={{ maxWidth: title === 'HOME' ? '100%' : 'sm', mx: 'auto' }}> 
+        <View style={[styles.contentContainer, { maxWidth: contentMaxWidth }]}>
           {children}
-        </Box>
-      </Container>
-    </Box>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.backgroundDefault,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+    alignItems: "center",
+  },
+  gutters: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  contentContainer: {
+    width: "100%",
+  },
+});
 
 export default ScreenWrapper;

@@ -19,7 +19,7 @@ const initialCharacterInProgress: Partial<Character> = {
 };
 
 interface AppProviderProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {

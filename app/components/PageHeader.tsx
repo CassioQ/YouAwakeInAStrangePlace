@@ -1,63 +1,93 @@
-import React from "react";
-import AppBar from "@mui/material/AppBar";
-import Toolbar from "@mui/material/Toolbar";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import Box from "@mui/material/Box";
-import MenuIcon from "@mui/icons-material/Menu";
-import WifiIcon from "@mui/icons-material/Wifi";
-import BatteryFullIcon from "@mui/icons-material/BatteryFull";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { colors } from "../styles/colors";
+import { commonStyles } from "../styles/commonStyles";
 
 interface PageHeaderProps {
   title: string;
 }
 
 const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
-  const currentTime = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  const [currentTime, setCurrentTime] = useState(
+    new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+      );
+    }, 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <AppBar position="static" elevation={1}>
-      <Toolbar>
-        <IconButton
-          edge="start"
-          color="inherit"
-          aria-label="menu"
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
-        <Typography
-          variant="h6"
-          component="div"
-          sx={{
-            flexGrow: 1,
-            textAlign: "center",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          {title}
-        </Typography>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            color: "text.secondary",
-          }}
-        >
-          <Typography variant="body2" sx={{ mr: 1 }}>
-            {currentTime}
-          </Typography>
-          <WifiIcon fontSize="small" sx={{ mr: 0.5 }} />
-          <BatteryFullIcon fontSize="small" />
-        </Box>
-      </Toolbar>
-    </AppBar>
+    <View style={styles.headerContainer}>
+      <TouchableOpacity
+        style={styles.menuButton}
+        onPress={() => console.log("Menu pressed")}
+      >
+        <Text style={styles.iconText}>☰</Text>
+      </TouchableOpacity>
+      <Text
+        style={[
+          styles.title,
+          commonStyles.textUppercase,
+          commonStyles.letterSpacingSmall,
+        ]}
+      >
+        {title}
+      </Text>
+      <View style={styles.statusIcons}>
+        <Text style={styles.statusText}>{currentTime}</Text>
+        <Text style={styles.iconText}>📶</Text>
+        <Text style={styles.iconText}>🔋</Text>
+      </View>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.headerBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  menuButton: {
+    padding: 8,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: colors.headerText,
+  },
+  statusIcons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statusText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginRight: 8,
+  },
+  iconText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginHorizontal: 4,
+  },
+});
 
 export default PageHeader;

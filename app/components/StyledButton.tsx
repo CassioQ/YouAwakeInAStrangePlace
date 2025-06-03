@@ -1,61 +1,116 @@
-import React from 'react';
-import Button, { ButtonProps as MuiButtonProps } from '@mui/material/Button';
+import React from "react";
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  TouchableOpacityProps,
+} from "react-native";
+import { colors } from "../styles/colors";
 
-interface StyledButtonProps extends MuiButtonProps {
-  children: React.ReactNode;
-  // MUI Button's variant prop can be 'text', 'outlined', 'contained'
-  // We'll map our 'primary' to 'contained' and 'secondary' to 'outlined' or another MUI variant
+interface StyledButtonProps extends TouchableOpacityProps {
+  children?: React.ReactNode;
+  props_variant?: "primary" | "secondary";
+  fullWidth?: boolean;
+  size?: "small" | "medium" | "large";
+  textStyle?: TextStyle;
 }
 
-const StyledButton: React.FC<StyledButtonProps> = ({ 
-  children, 
-  variant = 'contained', // Default to MUI's contained
-  color = 'primary',   // Default to MUI's primary
-  fullWidth = true,    // Keep the w-full behavior
-  sx,
-  ...props 
+const StyledButton: React.FC<StyledButtonProps> = ({
+  children,
+  props_variant = "primary",
+  style,
+  textStyle,
+  fullWidth = true, // In RN, views/touchables often take width of parent or content
+  size = "medium",
+  disabled,
+  ...props
 }) => {
-  // The muiVariant and muiColor are now directly the variant and color props.
-  // The logic to interpret 'props_variant' is handled by CustomStyledButton.
+  const buttonStyles: ViewStyle[] = [styles.buttonBase];
+  const textStyles: TextStyle[] = [styles.textBase];
+
+  if (props_variant === "primary") {
+    buttonStyles.push(styles.buttonPrimary);
+    textStyles.push(styles.textPrimary);
+  } else if (props_variant === "secondary") {
+    buttonStyles.push(styles.buttonSecondary);
+    textStyles.push(styles.textSecondary);
+  }
+
+  if (size === "small") {
+    buttonStyles.push(styles.buttonSmall);
+    textStyles.push(styles.textSmall);
+  }
+
+  if (disabled) {
+    buttonStyles.push(styles.buttonDisabled);
+    textStyles.push(styles.textDisabled);
+  }
+
+  if (style) {
+    buttonStyles.push(style as ViewStyle);
+  }
+  if (textStyle) {
+    textStyles.push(textStyle);
+  }
+
   return (
-    <Button
-      variant={variant}
-      color={color}
-      fullWidth={fullWidth}
-      sx={{ 
-        py: 1.5, // py-3 equivalent (MUI uses 8px scale, so 1.5 * 8px = 12px)
-        px: 2,   // px-4 equivalent
-        // Additional custom styles can be merged here
-        ...sx 
-      }}
+    <TouchableOpacity
+      style={buttonStyles}
+      disabled={disabled}
+      activeOpacity={0.7}
       {...props}
     >
-      {children}
-    </Button>
+      <Text style={textStyles}>{children}</Text>
+    </TouchableOpacity>
   );
 };
 
-// Helper to manage our old variant prop name
-const CustomStyledButton: React.FC<StyledButtonProps & { props_variant?: 'primary' | 'secondary' }> = ({
-  props_variant,
-  ...rest
-}) => {
-  let muiVariant: MuiButtonProps['variant'] = rest.variant || 'contained';
-  let muiColor: MuiButtonProps['color'] = rest.color || 'primary';
+const styles = StyleSheet.create({
+  buttonBase: {
+    paddingVertical: 12, // py: 1.5 in MUI (12px)
+    paddingHorizontal: 16, // px: 2 in MUI (16px)
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48, // Good touch target size
+  },
+  buttonPrimary: {
+    backgroundColor: colors.primary,
+  },
+  buttonSecondary: {
+    backgroundColor: colors.secondary,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  buttonDisabled: {
+    backgroundColor: colors.stone300,
+    opacity: 0.7,
+  },
+  textBase: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  textPrimary: {
+    color: colors.primaryContrast,
+  },
+  textSecondary: {
+    color: colors.secondaryContrast,
+  },
+  textDisabled: {
+    color: colors.stone700,
+  },
+  // Size variants
+  buttonSmall: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minHeight: 36,
+  },
+  textSmall: {
+    fontSize: 14,
+  },
+});
 
-  if (props_variant === 'primary') {
-    muiVariant = 'contained';
-    muiColor = 'primary';
-  } else if (props_variant === 'secondary') {
-    muiVariant = 'contained'; // Using contained secondary as per theme for a filled secondary button
-    muiColor = 'secondary';
-    // If an outlined secondary is preferred:
-    // muiVariant = 'outlined';
-    // muiColor = 'primary'; // or 'inherit' or a custom color
-  }
-  
-  return <StyledButton {...rest} variant={muiVariant} color={muiColor} />;
-}
-
-
-export default CustomStyledButton;
+// CustomStyledButton is no longer needed as props_variant is handled directly.
+export default StyledButton;

@@ -1,23 +1,25 @@
 import React, { useContext } from "react";
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
-import theme from "./theme"; // Import the custom theme
+import { View, Text, StyleSheet, StatusBar } from "react-native";
 
-// Import screens
+import { colors } from "./styles/colors";
 import { AppContext, AppProvider } from "./contexts/AppContexts";
 import { ScreenEnum } from "./models/enums/CommomEnuns";
-import HomeScreen from "./pages/HomeScreem";
 import AccessScreen from "./pages/AccessScreen";
 import CharacterDevDetailsScreen from "./pages/CharacterDevDetailsScreen";
 import CharacterDevNameDescScreen from "./pages/CharacterDevNameDescScreen";
 import CharacterDevThemeScreen from "./pages/CharacterDevThemeScreen";
 import CharacterSheetScreen from "./pages/CharacterSheetScreen";
+import HomeScreen from "./pages/HomeScreen";
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
 
   if (!context) {
-    return <div>Loading context...</div>;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading context...</Text>
+      </View>
+    );
   }
 
   const { currentScreen } = context;
@@ -42,14 +44,22 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />{" "}
-      {/* Applies baseline styles and dark mode compatibility */}
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </ThemeProvider>
+    <AppProvider>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={colors.backgroundDefault}
+      />
+      <AppContent />
+    </AppProvider>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});
 
 export default App;

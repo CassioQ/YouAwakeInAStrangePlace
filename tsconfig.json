@@ -5,16 +5,12 @@
     "esModuleInterop": true,
     "isolatedModules": true,
     "jsx": "react-native",
-    "lib": [
-      "es6"
-    ],
-    "moduleResolution": "node",
+    "lib": ["es6"],
+    "moduleResolution": "bundler",
     "noEmit": true,
     "strict": true,
     "target": "es2017"
   },
-  "exclude": [
-    "node_modules"
-  ],
+  "exclude": ["node_modules"],
   "extends": "expo/tsconfig.base"
 }
