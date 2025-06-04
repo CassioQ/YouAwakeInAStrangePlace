@@ -2,10 +2,12 @@ import { Character, Skill } from "./Character.types";
 import { ScreenEnum, UserRole } from "./enums/CommomEnuns";
 import { User as FirebaseUser } from "firebase/auth";
 import { GameServer, PlayerInLobby } from "./GameServer.types";
+import { UserProfile } from "./UserProfile.types";
 
 export interface AppContextType {
   currentUser: FirebaseUser | null;
   isLoadingAuth: boolean;
+  userProfile: UserProfile | null; // Store fetched user profile data
 
   userRole: UserRole | null;
   setUserRole: (role: UserRole | null) => void;
@@ -31,4 +33,8 @@ export interface AppContextType {
   loginWithGoogle: () => Promise<FirebaseUser | null>;
   loginWithFacebook: () => Promise<FirebaseUser | null>;
   logout: () => Promise<void>;
+
+  // Session resumption related
+  fetchUserProfile: (userId: string) => Promise<void>;
+  clearUserActiveServerId: (role: UserRole) => Promise<void>;
 }

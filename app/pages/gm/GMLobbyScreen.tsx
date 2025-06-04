@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   TouchableOpacity,
+  AppState, // For focus detection
 } from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { colors } from "../../styles/colors";
@@ -23,8 +24,9 @@ import {
   getGameServerDetails,
   startGame,
   listenToServerStatus,
+  updateServerTimestamps, // Added
 } from "../../services/firebaseServices";
-import { ScreenEnum } from "../../models/enums/CommomEnuns";
+import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";
 
@@ -39,7 +41,36 @@ const GMLobbyScreen: React.FC = () => {
   const [startingGame, setStartingGame] = useState(false);
 
   if (!context) return null;
-  const { activeServerDetails, navigateTo, setActiveServerDetails } = context;
+  const {
+    activeServerDetails,
+    navigateTo,
+    setActiveServerDetails: setGlobalActiveServer,
+    currentUser,
+    clearUserActiveServerId,
+  } = context;
+
+  // Update GM's last seen timestamp when screen is focused or on interval
+  useEffect(() => {
+    const updateGmSeen = async () => {
+      if (serverDetails?.id && currentUser?.uid === serverDetails.gmId) {
+        await updateServerTimestamps(serverDetails.id, true);
+      }
+    };
+
+    updateGmSeen(); // Initial update
+    const intervalId = setInterval(updateGmSeen, 60 * 1000); // Update every minute
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        updateGmSeen();
+      }
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      subscription.remove();
+    };
+  }, [serverDetails?.id, currentUser?.uid, serverDetails?.gmId]);
 
   useEffect(() => {
     let unsubscribePlayerListener: Unsubscribe | null = null;
@@ -51,7 +82,7 @@ const GMLobbyScreen: React.FC = () => {
         const details = await getGameServerDetails(activeServerDetails.id);
         if (details) {
           setServerDetails(details);
-          setActiveServerDetails(details);
+          setGlobalActiveServer(details);
 
           unsubscribePlayerListener = listenToLobbyPlayers(
             activeServerDetails.id,
@@ -64,7 +95,7 @@ const GMLobbyScreen: React.FC = () => {
             (status) => {
               setServerDetails((prev) => (prev ? { ...prev, status } : null));
               if (status === "in-progress") {
-                Alert.alert("Jogo Iniciado!", "A partida começou.");
+                // Alert.alert("Jogo Iniciado!", "A partida começou."); // Optional, can be noisy
                 navigateTo(ScreenEnum.GAME_IN_PROGRESS_GM);
               }
             }
@@ -74,6 +105,7 @@ const GMLobbyScreen: React.FC = () => {
             "Erro",
             "Não foi possível carregar os detalhes do servidor."
           );
+          await clearUserActiveServerId(UserRole.GM);
           navigateTo(ScreenEnum.HOME);
         }
         setLoadingServer(false);
@@ -89,10 +121,21 @@ const GMLobbyScreen: React.FC = () => {
       if (unsubscribePlayerListener) unsubscribePlayerListener();
       if (unsubscribeStatusListener) unsubscribeStatusListener();
     };
-  }, [activeServerDetails?.id, navigateTo, setActiveServerDetails]);
+  }, [
+    activeServerDetails?.id,
+    navigateTo,
+    setGlobalActiveServer,
+    clearUserActiveServerId,
+  ]);
 
-  const handleReturnHome = () => {
-    setActiveServerDetails(null);
+  const handleCloseLobby = async () => {
+    // GM might choose to delete the server or just leave it.
+    // For now, let's just clear their active ID and navigate home.
+    // Deletion can be handled by cleanup or a separate "Delete Server" button.
+    if (currentUser) {
+      await clearUserActiveServerId(UserRole.GM);
+    }
+    setGlobalActiveServer(null);
     navigateTo(ScreenEnum.HOME);
   };
 
@@ -125,7 +168,10 @@ const GMLobbyScreen: React.FC = () => {
           <Text style={styles.errorText}>
             Detalhes do servidor não encontrados.
           </Text>
-          <StyledButton onPress={handleReturnHome} props_variant="primary">
+          <StyledButton
+            onPress={() => navigateTo(ScreenEnum.HOME)}
+            props_variant="primary"
+          >
             Voltar
           </StyledButton>
         </View>
@@ -226,7 +272,7 @@ const GMLobbyScreen: React.FC = () => {
           />
         )}
         <StyledButton
-          onPress={handleReturnHome}
+          onPress={handleCloseLobby}
           props_variant="secondary"
           style={styles.closeLobbyButton}
         >

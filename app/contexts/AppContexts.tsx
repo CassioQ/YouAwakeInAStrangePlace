@@ -9,7 +9,8 @@ import { Alert, Platform } from "react-native";
 import { AppContextType } from "../models/AppContext.types";
 import { Character } from "../models/Character.types";
 import { ScreenEnum, UserRole } from "../models/enums/CommomEnuns";
-import { GameServer, PlayerInLobby } from "../models/GameServer.types";
+import { GameServer } from "../models/GameServer.types";
+import { UserProfile } from "../models/UserProfile.types";
 import {
   auth,
   onAuthStateChanged,
@@ -18,23 +19,14 @@ import {
   FacebookAuthProvider,
   signInWithCredential,
   signOut as firebaseSignOut,
-  updateProfile,
+  updateProfile as firebaseUpdateProfile,
 } from "../../firebase";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+
 import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  onSnapshot,
-  serverTimestamp,
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  arrayUnion,
-  FieldValue,
-} from "firebase/firestore";
+  fetchUserProfileData,
+  updateUserActiveServerId as fbUpdateUserActiveServerId,
+} from "../services/firebaseServices";
 
 // Expo Auth Session
 import * as WebBrowser from "expo-web-browser";
@@ -76,9 +68,10 @@ interface AppProviderProps {
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
+  const [userProfile, setUserProfileState] = useState<UserProfile | null>(null);
   const [userRole, setUserRoleState] = useState<UserRole | null>(null);
   const [currentScreen, setCurrentScreen] = useState<ScreenEnum>(
-    ScreenEnum.HOME
+    ScreenEnum.LOGIN
   );
   const [characterInProgress, setCharacterInProgress] = useState<
     Partial<Character>
@@ -86,13 +79,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [createdCharacter, setCreatedCharacterState] =
     useState<Character | null>(null);
 
-  // Server Management (used by GM and Player once joined)
   const [activeServerDetails, setActiveServerDetailsState] =
     useState<GameServer | null>(null);
 
   const db = getFirestore();
 
-  // Google Auth Request
   const [googleRequest, googleResponse, promptGoogleAsync] =
     Google.useIdTokenAuthRequest({
       clientId: EXPO_GOOGLE_CLIENT_ID,
@@ -101,32 +92,61 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       androidClientId: ANDROID_GOOGLE_CLIENT_ID,
     });
 
-  // Facebook Auth Request
   const [facebookRequest, facebookResponse, promptFacebookAsync] =
     Facebook.useAuthRequest({
       clientId: FACEBOOK_APP_ID,
     });
 
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    try {
+      const profile = await fetchUserProfileData(userId);
+      setUserProfileState(profile);
+      if (profile?.activeGmServerId || profile?.activePlayerServerId) {
+        // If there's an active server, HomeScreen will handle the alert.
+        // Potentially set userRole based on which ID is present if needed earlier.
+      }
+    } catch (error) {
+      console.error("Error fetching user profile in context:", error);
+      setUserProfileState(null); // Or a default error state
+    }
+  }, []);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      setIsLoadingAuth(false);
-      if (!user) {
-        if (!openAccessScreens()) {
-          navigateTo(ScreenEnum.LOGIN);
+      if (user) {
+        await fetchUserProfile(user.uid);
+        // Update lastLogin in user's Firestore profile
+        const userProfileRef = doc(db, "userProfiles", user.uid);
+        await setDoc(
+          userProfileRef,
+          {
+            userId: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            lastLoginAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        if (openAccessScreens()) {
+          navigateTo(ScreenEnum.HOME);
         }
+      } else {
+        setUserProfileState(null);
         setUserRoleState(null);
         resetCharacterInProgress();
         setCreatedCharacterState(null);
         setActiveServerDetailsState(null);
-      } else {
-        if (openAccessScreens()) {
-          navigateTo(ScreenEnum.HOME);
+        if (!openAccessScreens()) {
+          // only navigate if not already on an access screen
+          navigateTo(ScreenEnum.LOGIN);
         }
       }
+      setIsLoadingAuth(false);
     });
     return () => unsubscribe();
-  }, [currentScreen]);
+  }, [fetchUserProfile, currentScreen]); // Added currentScreen to dependencies
 
   function openAccessScreens(): boolean {
     return (
@@ -206,7 +226,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptGoogleAsync();
-      return null;
+      return null; // Auth state change will handle user object
     } catch (error: any) {
       setIsLoadingAuth(false);
       return null;
@@ -217,7 +237,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptFacebookAsync();
-      return null;
+      return null; // Auth state change will handle user object
     } catch (error: any) {
       setIsLoadingAuth(false);
       return null;
@@ -228,7 +248,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await firebaseSignOut(auth);
-      // State will be cleared by onAuthStateChanged
+      // State is cleared by onAuthStateChanged
     } catch (error: any) {
       Alert.alert(
         "Erro de Logout",
@@ -238,6 +258,31 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setIsLoadingAuth(false);
     }
   };
+
+  const clearUserActiveServerId = useCallback(
+    async (role: UserRole) => {
+      if (currentUser) {
+        try {
+          await fbUpdateUserActiveServerId(currentUser.uid, role, null);
+          // Refetch or update local userProfile state
+          setUserProfileState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ...(role === UserRole.GM && { activeGmServerId: null }),
+                  ...(role === UserRole.PLAYER && {
+                    activePlayerServerId: null,
+                  }),
+                }
+              : null
+          );
+        } catch (error) {
+          console.error("Error clearing user active server ID:", error);
+        }
+      }
+    },
+    [currentUser]
+  );
 
   const setUserRole = useCallback((role: UserRole | null) => {
     setUserRoleState(role);
@@ -339,6 +384,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       value={{
         currentUser,
         isLoadingAuth,
+        userProfile,
+        fetchUserProfile,
+        clearUserActiveServerId,
         userRole,
         setUserRole,
         currentScreen,

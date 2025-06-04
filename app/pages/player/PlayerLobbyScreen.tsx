@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  AppState, // For focus detection
 } from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { colors } from "../../styles/colors";
@@ -20,8 +21,10 @@ import {
 import {
   listenToLobbyPlayers,
   listenToServerStatus,
+  leaveGameServer, // Added
+  updateServerTimestamps, // Added
 } from "../../services/firebaseServices";
-import { ScreenEnum } from "../../models/enums/CommomEnuns";
+import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";
 
@@ -36,34 +39,60 @@ const PlayerLobbyScreen: React.FC = () => {
 
   if (!context) return null;
   const {
-    activeServerDetails,
+    activeServerDetails: globalActiveServerDetails,
     navigateTo,
-    setActiveServerDetails,
+    setActiveServerDetails: setGlobalActiveServerDetails,
     currentUser,
+    clearUserActiveServerId,
   } = context;
+
+  useEffect(() => {
+    const updatePlayerActivity = async () => {
+      if (serverDetails?.id) {
+        await updateServerTimestamps(serverDetails.id, false); // Player activity, not GM
+      }
+    };
+
+    updatePlayerActivity(); // Initial update
+    const intervalId = setInterval(updatePlayerActivity, 2 * 60 * 1000); // Update every 2 minutes
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        updatePlayerActivity();
+      }
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      subscription.remove();
+    };
+  }, [serverDetails?.id]);
 
   useEffect(() => {
     let unsubscribePlayerListener: Unsubscribe | null = null;
     let unsubscribeStatusListener: Unsubscribe | null = null;
 
-    if (activeServerDetails?.id) {
+    if (globalActiveServerDetails?.id) {
       setLoadingLobby(true);
-      setServerDetails(activeServerDetails);
+      setServerDetails(globalActiveServerDetails);
 
       unsubscribePlayerListener = listenToLobbyPlayers(
-        activeServerDetails.id,
+        globalActiveServerDetails.id,
         (players) => {
           setLobbyPlayers(players);
         }
       );
 
       unsubscribeStatusListener = listenToServerStatus(
-        activeServerDetails.id,
+        globalActiveServerDetails.id,
         (status) => {
           setServerDetails((prev) => (prev ? { ...prev, status } : null));
           if (status === "in-progress") {
-            Alert.alert("Partida Iniciada!", "O mestre iniciou a partida.");
+            // Alert.alert("Partida Iniciada!", "O mestre iniciou a partida."); // Optional
             navigateTo(ScreenEnum.GAME_IN_PROGRESS_PLAYER);
+          } else if (status === "finished") {
+            Alert.alert("Partida Finalizada", "O mestre encerrou a partida.");
+            handleLeaveLobby(true); // Force leave if game finished
           }
         }
       );
@@ -77,10 +106,21 @@ const PlayerLobbyScreen: React.FC = () => {
       if (unsubscribePlayerListener) unsubscribePlayerListener();
       if (unsubscribeStatusListener) unsubscribeStatusListener();
     };
-  }, [activeServerDetails?.id, navigateTo]);
+  }, [globalActiveServerDetails?.id, navigateTo]);
 
-  const handleLeaveLobby = () => {
-    setActiveServerDetails(null);
+  const handleLeaveLobby = async (gameFinished = false) => {
+    if (currentUser && serverDetails?.id && !gameFinished) {
+      // Don't try to leave if game just finished
+      try {
+        await leaveGameServer(serverDetails.id, currentUser.uid);
+      } catch (error) {
+        console.warn("Error leaving server:", error);
+      }
+    }
+    if (currentUser) {
+      await clearUserActiveServerId(UserRole.PLAYER);
+    }
+    setGlobalActiveServerDetails(null);
     navigateTo(ScreenEnum.HOME);
   };
 
@@ -102,7 +142,10 @@ const PlayerLobbyScreen: React.FC = () => {
           <Text style={styles.errorText}>
             Detalhes do servidor não encontrados.
           </Text>
-          <StyledButton onPress={handleLeaveLobby} props_variant="primary">
+          <StyledButton
+            onPress={() => handleLeaveLobby()}
+            props_variant="primary"
+          >
             Voltar
           </StyledButton>
         </View>
@@ -136,6 +179,11 @@ const PlayerLobbyScreen: React.FC = () => {
               Partida em andamento!
             </Text>
           )}
+          {serverDetails.status === "finished" && (
+            <Text style={[styles.waitingMessage, { color: colors.error }]}>
+              Partida Finalizada.
+            </Text>
+          )}
         </View>
 
         <Text style={styles.playersHeader}>
@@ -156,7 +204,6 @@ const PlayerLobbyScreen: React.FC = () => {
                 />
                 <View style={styles.playerInfo}>
                   <Text style={styles.playerName}>{item.playerName}</Text>
-                  {/* Character name might not be available yet */}
                   <Text style={styles.characterName}>
                     Personagem: {item.characterName || "A definir..."}
                   </Text>
@@ -170,7 +217,7 @@ const PlayerLobbyScreen: React.FC = () => {
           />
         )}
         <StyledButton
-          onPress={handleLeaveLobby}
+          onPress={() => handleLeaveLobby()}
           props_variant="secondary"
           style={styles.leaveButton}
         >

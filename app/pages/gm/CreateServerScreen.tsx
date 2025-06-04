@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { View, Text, StyleSheet, Alert } from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import StyledInput from "../../components/StyledInput";
@@ -16,24 +16,36 @@ const CreateServerScreen: React.FC = () => {
   const context = useContext(AppContext);
 
   if (!context) return null;
-  const { navigateTo, setActiveServerDetails } = context;
+  const { navigateTo, setActiveServerDetails, currentUser } = context;
+
+  // useEffect(() => {
+  //   // Client-side cleanup removed
+  //   // if (currentUser?.uid) {
+  //   //   cleanupOldUserServers(currentUser.uid)
+  //   //     .catch(err => console.warn("Client-side cleanup check failed silently:", err));
+  //   // }
+  // }, [currentUser?.uid]);
 
   const handleSubmit = async () => {
     if (!serverName.trim()) {
       Alert.alert("Erro", "Nome do servidor é obrigatório.");
       return;
     }
-    // Password can be optional
-    // if (!password.trim()) {
-    //   Alert.alert("Erro", "Senha do servidor é obrigatória.");
-    //   return;
-    // }
+
+    if (!currentUser) {
+      Alert.alert("Erro", "Usuário não autenticado.");
+      navigateTo(ScreenEnum.LOGIN);
+      return;
+    }
 
     setLoading(true);
     try {
+      // Client-side cleanup removed
+      // await cleanupOldUserServers(currentUser.uid);
+
       const newServer = await createGameServer(serverName, password);
       if (newServer) {
-        setActiveServerDetails(newServer); // Store the full server object with its new ID
+        setActiveServerDetails(newServer);
         navigateTo(ScreenEnum.GM_LOBBY);
         Alert.alert("Sucesso", `Servidor "${serverName}" criado!`);
       } else {
@@ -78,7 +90,8 @@ const CreateServerScreen: React.FC = () => {
         />
         <Text style={styles.securityNote}>
           Lembre-se: senhas de servidor são para conveniência, não segurança
-          robusta.
+          robusta. Servidores vazios por muito tempo serão removidos
+          automaticamente.
         </Text>
         <View style={styles.buttonWrapper}>
           <StyledButton
@@ -89,6 +102,13 @@ const CreateServerScreen: React.FC = () => {
             {loading ? "Criando..." : "CRIAR SERVIDOR"}
           </StyledButton>
         </View>
+        <StyledButton
+          onPress={() => navigateTo(ScreenEnum.HOME)}
+          props_variant="secondary"
+          style={{ marginTop: 10 }}
+        >
+          Voltar
+        </StyledButton>
       </View>
     </ScreenWrapper>
   );

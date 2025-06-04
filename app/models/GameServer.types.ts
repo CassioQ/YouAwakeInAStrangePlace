@@ -15,9 +15,11 @@ export interface PlayerInLobby {
 export interface GameServer {
   id: string; // Firestore document ID
   serverName: string;
-  password?: string; // WARNING: Storing passwords in plain text is insecure for production
+  password?: string;
   gmId: string; // Firebase UID of the GM
-  createdAt: FieldValue; // Firestore ServerTimestamp on write, Timestamp on read
+  createdAt: FieldValue;
   players: PlayerInLobby[];
-  status: GameServerStatus; // New field: 'lobby', 'in-progress', 'finished'
+  status: GameServerStatus;
+  lastActivityAt: FieldValue; // Timestamp of the last meaningful activity
+  gmLastSeenAt: FieldValue; // Timestamp of when the GM was last active in the lobby
 }
