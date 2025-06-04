@@ -1,13 +1,13 @@
 import { Character, Skill } from "./Character.types";
 import { ScreenEnum, UserRole } from "./enums/CommomEnuns";
 import { User as FirebaseUser } from "firebase/auth";
-import { GameServer, PlayerInLobby } from "./GameServer.types";
+import { GameServer, PlayerInLobby, GameSetupState } from "./GameServer.types"; // Added GameSetupState
 import { UserProfile } from "./UserProfile.types";
 
 export interface AppContextType {
   currentUser: FirebaseUser | null;
   isLoadingAuth: boolean;
-  userProfile: UserProfile | null; // Store fetched user profile data
+  userProfile: UserProfile | null;
 
   userRole: UserRole | null;
   setUserRole: (role: UserRole | null) => void;
@@ -28,6 +28,9 @@ export interface AppContextType {
 
   activeServerDetails: GameServer | null;
   setActiveServerDetails: (details: GameServer | null) => void;
+
+  activeGameSetup: GameSetupState | null;
+  setActiveGameSetup: (gameSetup: GameSetupState | null) => void;
 
   // Auth functions
   loginWithGoogle: () => Promise<FirebaseUser | null>;

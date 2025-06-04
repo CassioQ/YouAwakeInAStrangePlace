@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  AppState, // For focus detection
+  AppState,
 } from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { colors } from "../../styles/colors";
@@ -17,12 +17,13 @@ import {
   PlayerInLobby,
   GameServer,
   GameServerStatus,
+  GameSetupState,
 } from "../../models/GameServer.types";
 import {
   listenToLobbyPlayers,
   listenToServerStatus,
-  leaveGameServer, // Added
-  updateServerTimestamps, // Added
+  leaveGameServer,
+  updateServerTimestamps,
 } from "../../services/firebaseServices";
 import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
 import { Unsubscribe } from "firebase/firestore";
@@ -44,17 +45,18 @@ const PlayerLobbyScreen: React.FC = () => {
     setActiveServerDetails: setGlobalActiveServerDetails,
     currentUser,
     clearUserActiveServerId,
+    setActiveGameSetup, // For updating game setup state
   } = context;
 
   useEffect(() => {
     const updatePlayerActivity = async () => {
       if (serverDetails?.id) {
-        await updateServerTimestamps(serverDetails.id, false); // Player activity, not GM
+        await updateServerTimestamps(serverDetails.id, false);
       }
     };
 
-    updatePlayerActivity(); // Initial update
-    const intervalId = setInterval(updatePlayerActivity, 2 * 60 * 1000); // Update every 2 minutes
+    updatePlayerActivity();
+    const intervalId = setInterval(updatePlayerActivity, 2 * 60 * 1000);
 
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
@@ -75,6 +77,7 @@ const PlayerLobbyScreen: React.FC = () => {
     if (globalActiveServerDetails?.id) {
       setLoadingLobby(true);
       setServerDetails(globalActiveServerDetails);
+      setActiveGameSetup(globalActiveServerDetails.gameSetup || null);
 
       unsubscribePlayerListener = listenToLobbyPlayers(
         globalActiveServerDetails.id,
@@ -85,14 +88,21 @@ const PlayerLobbyScreen: React.FC = () => {
 
       unsubscribeStatusListener = listenToServerStatus(
         globalActiveServerDetails.id,
-        (status) => {
-          setServerDetails((prev) => (prev ? { ...prev, status } : null));
-          if (status === "in-progress") {
-            // Alert.alert("Partida Iniciada!", "O mestre iniciou a partida."); // Optional
-            navigateTo(ScreenEnum.GAME_IN_PROGRESS_PLAYER);
+        (status, gameSetupData) => {
+          // Modified to receive gameSetupData
+          setServerDetails((prev) =>
+            prev
+              ? { ...prev, status, gameSetup: gameSetupData || prev.gameSetup }
+              : null
+          );
+          setActiveGameSetup(gameSetupData || null); // Update context with game setup data
+
+          if (status === "in-progress" && gameSetupData) {
+            // Check if gameSetupData is available
+            navigateTo(ScreenEnum.GAME_SETUP_PLAYER);
           } else if (status === "finished") {
             Alert.alert("Partida Finalizada", "O mestre encerrou a partida.");
-            handleLeaveLobby(true); // Force leave if game finished
+            handleLeaveLobby(true);
           }
         }
       );
@@ -106,11 +116,10 @@ const PlayerLobbyScreen: React.FC = () => {
       if (unsubscribePlayerListener) unsubscribePlayerListener();
       if (unsubscribeStatusListener) unsubscribeStatusListener();
     };
-  }, [globalActiveServerDetails?.id, navigateTo]);
+  }, [globalActiveServerDetails?.id, navigateTo, setActiveGameSetup]);
 
   const handleLeaveLobby = async (gameFinished = false) => {
     if (currentUser && serverDetails?.id && !gameFinished) {
-      // Don't try to leave if game just finished
       try {
         await leaveGameServer(serverDetails.id, currentUser.uid);
       } catch (error) {
@@ -121,6 +130,7 @@ const PlayerLobbyScreen: React.FC = () => {
       await clearUserActiveServerId(UserRole.PLAYER);
     }
     setGlobalActiveServerDetails(null);
+    setActiveGameSetup(null); // Clear game setup on leave
     navigateTo(ScreenEnum.HOME);
   };
 
@@ -174,11 +184,18 @@ const PlayerLobbyScreen: React.FC = () => {
               Aguardando o Mestre iniciar a partida...
             </Text>
           )}
-          {serverDetails.status === "in-progress" && (
-            <Text style={[styles.waitingMessage, { color: colors.success }]}>
-              Partida em andamento!
-            </Text>
-          )}
+          {serverDetails.status === "in-progress" &&
+            !serverDetails.gameSetup && (
+              <Text style={[styles.waitingMessage, { color: colors.primary }]}>
+                Preparando configuração do jogo...
+              </Text>
+            )}
+          {serverDetails.status === "in-progress" &&
+            serverDetails.gameSetup && (
+              <Text style={[styles.waitingMessage, { color: colors.success }]}>
+                Configuração do jogo em andamento!
+              </Text>
+            )}
           {serverDetails.status === "finished" && (
             <Text style={[styles.waitingMessage, { color: colors.error }]}>
               Partida Finalizada.

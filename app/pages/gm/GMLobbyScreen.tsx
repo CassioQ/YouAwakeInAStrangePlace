@@ -24,7 +24,7 @@ import {
   getGameServerDetails,
   startGame,
   listenToServerStatus,
-  updateServerTimestamps, // Added
+  updateServerTimestamps,
 } from "../../services/firebaseServices";
 import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
 import { Unsubscribe } from "firebase/firestore";
@@ -47,9 +47,9 @@ const GMLobbyScreen: React.FC = () => {
     setActiveServerDetails: setGlobalActiveServer,
     currentUser,
     clearUserActiveServerId,
+    setActiveGameSetup,
   } = context;
 
-  // Update GM's last seen timestamp when screen is focused or on interval
   useEffect(() => {
     const updateGmSeen = async () => {
       if (serverDetails?.id && currentUser?.uid === serverDetails.gmId) {
@@ -57,8 +57,8 @@ const GMLobbyScreen: React.FC = () => {
       }
     };
 
-    updateGmSeen(); // Initial update
-    const intervalId = setInterval(updateGmSeen, 60 * 1000); // Update every minute
+    updateGmSeen();
+    const intervalId = setInterval(updateGmSeen, 60 * 1000);
 
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
@@ -83,6 +83,7 @@ const GMLobbyScreen: React.FC = () => {
         if (details) {
           setServerDetails(details);
           setGlobalActiveServer(details);
+          setActiveGameSetup(details.gameSetup || null);
 
           unsubscribePlayerListener = listenToLobbyPlayers(
             activeServerDetails.id,
@@ -92,11 +93,20 @@ const GMLobbyScreen: React.FC = () => {
           );
           unsubscribeStatusListener = listenToServerStatus(
             activeServerDetails.id,
-            (status) => {
-              setServerDetails((prev) => (prev ? { ...prev, status } : null));
+            (status, gameSetupData) => {
+              // Modified to receive gameSetupData
+              setServerDetails((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      status,
+                      gameSetup: gameSetupData || prev.gameSetup,
+                    }
+                  : null
+              );
+              setActiveGameSetup(gameSetupData || null); // Update context
               if (status === "in-progress") {
-                // Alert.alert("Jogo Iniciado!", "A partida começou."); // Optional, can be noisy
-                navigateTo(ScreenEnum.GAME_IN_PROGRESS_GM);
+                navigateTo(ScreenEnum.GAME_SETUP_GM_MONITOR);
               }
             }
           );
@@ -105,7 +115,7 @@ const GMLobbyScreen: React.FC = () => {
             "Erro",
             "Não foi possível carregar os detalhes do servidor."
           );
-          await clearUserActiveServerId(UserRole.GM);
+          if (currentUser) await clearUserActiveServerId(UserRole.GM);
           navigateTo(ScreenEnum.HOME);
         }
         setLoadingServer(false);
@@ -125,28 +135,32 @@ const GMLobbyScreen: React.FC = () => {
     activeServerDetails?.id,
     navigateTo,
     setGlobalActiveServer,
+    currentUser,
     clearUserActiveServerId,
+    setActiveGameSetup,
   ]);
 
   const handleCloseLobby = async () => {
-    // GM might choose to delete the server or just leave it.
-    // For now, let's just clear their active ID and navigate home.
-    // Deletion can be handled by cleanup or a separate "Delete Server" button.
     if (currentUser) {
       await clearUserActiveServerId(UserRole.GM);
     }
     setGlobalActiveServer(null);
+    setActiveGameSetup(null);
     navigateTo(ScreenEnum.HOME);
   };
 
   const handleStartGame = async () => {
     if (!serverDetails?.id || lobbyPlayers.length === 0) return;
     setStartingGame(true);
-    const success = await startGame(serverDetails.id);
-    if (!success) {
-      Alert.alert("Erro", "Não foi possível iniciar a partida.");
+    const success = await startGame(serverDetails.id, lobbyPlayers); // Pass lobbyPlayers
+    if (success) {
+      // Navigation to GAME_SETUP_GM_MONITOR is handled by the status listener
+    } else {
+      Alert.alert(
+        "Erro",
+        "Não foi possível iniciar a partida e a configuração do jogo."
+      );
     }
-    // Listener will handle navigation if successful
     setStartingGame(false);
   };
 

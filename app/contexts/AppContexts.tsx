@@ -9,7 +9,7 @@ import { Alert, Platform } from "react-native";
 import { AppContextType } from "../models/AppContext.types";
 import { Character } from "../models/Character.types";
 import { ScreenEnum, UserRole } from "../models/enums/CommomEnuns";
-import { GameServer } from "../models/GameServer.types";
+import { GameServer, GameSetupState } from "../models/GameServer.types"; // Added GameSetupState
 import { UserProfile } from "../models/UserProfile.types";
 import {
   auth,
@@ -81,6 +81,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const [activeServerDetails, setActiveServerDetailsState] =
     useState<GameServer | null>(null);
+  const [activeGameSetup, setActiveGameSetupState] =
+    useState<GameSetupState | null>(null); // New state
 
   const db = getFirestore();
 
@@ -103,20 +105,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setUserProfileState(profile);
       if (profile?.activeGmServerId || profile?.activePlayerServerId) {
         // If there's an active server, HomeScreen will handle the alert.
-        // Potentially set userRole based on which ID is present if needed earlier.
       }
     } catch (error) {
       console.error("Error fetching user profile in context:", error);
-      setUserProfileState(null); // Or a default error state
+      setUserProfileState(null);
     }
   }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      console.log("Auth state changed:", user);
       if (user) {
         await fetchUserProfile(user.uid);
-        // Update lastLogin in user's Firestore profile
         const userProfileRef = doc(db, "userProfiles", user.uid);
         await setDoc(
           userProfileRef,
@@ -138,15 +139,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         resetCharacterInProgress();
         setCreatedCharacterState(null);
         setActiveServerDetailsState(null);
+        setActiveGameSetupState(null); // Reset game setup on logout
         if (!openAccessScreens()) {
-          // only navigate if not already on an access screen
           navigateTo(ScreenEnum.LOGIN);
         }
       }
       setIsLoadingAuth(false);
     });
     return () => unsubscribe();
-  }, [fetchUserProfile, currentScreen]); // Added currentScreen to dependencies
+  }, [fetchUserProfile, currentScreen]);
 
   function openAccessScreens(): boolean {
     return (
@@ -226,7 +227,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptGoogleAsync();
-      return null; // Auth state change will handle user object
+      return null;
     } catch (error: any) {
       setIsLoadingAuth(false);
       return null;
@@ -237,7 +238,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptFacebookAsync();
-      return null; // Auth state change will handle user object
+      return null;
     } catch (error: any) {
       setIsLoadingAuth(false);
       return null;
@@ -248,7 +249,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await firebaseSignOut(auth);
-      // State is cleared by onAuthStateChanged
     } catch (error: any) {
       Alert.alert(
         "Erro de Logout",
@@ -264,7 +264,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       if (currentUser) {
         try {
           await fbUpdateUserActiveServerId(currentUser.uid, role, null);
-          // Refetch or update local userProfile state
           setUserProfileState((prev) =>
             prev
               ? {
@@ -379,6 +378,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setActiveServerDetailsState(details);
   }, []);
 
+  const setActiveGameSetup = useCallback((gameSetup: GameSetupState | null) => {
+    setActiveGameSetupState(gameSetup);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -399,6 +402,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setCreatedCharacter,
         activeServerDetails,
         setActiveServerDetails,
+        activeGameSetup, // Provide new state
+        setActiveGameSetup, // Provide new function
         loginWithGoogle,
         loginWithFacebook,
         logout,

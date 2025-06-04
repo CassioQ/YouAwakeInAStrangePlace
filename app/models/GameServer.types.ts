@@ -1,25 +1,57 @@
-import { FieldValue } from "firebase/firestore";
+import { FieldValue, Timestamp } from "firebase/firestore";
 import { Skill } from "./Character.types";
+import { GameSetupPhase } from "./enums/CommomEnuns";
 
 export type GameServerStatus = "lobby" | "in-progress" | "finished";
 
 export interface PlayerInLobby {
-  userId: string; // Firebase UID of the player
-  playerName: string; // Firebase display name or email part
+  userId: string;
+  playerName: string;
   characterId?: string | null;
   characterName?: string | null;
   skills?: Skill[] | null;
   avatarUrl?: string | null;
 }
 
+export interface PlayerRoll {
+  playerId: string;
+  playerName: string;
+  rollValue: number;
+  rolledAt: Date | Timestamp;
+}
+
+export interface WorldDefinitionPart {
+  value?: string;
+  definedByPlayerId?: string;
+  definedByPlayerName?: string;
+}
+
+export interface WorldDefinition {
+  genre?: WorldDefinitionPart;
+  adjective?: WorldDefinitionPart;
+  location?: WorldDefinitionPart;
+}
+
+export interface GameSetupState {
+  currentPhase: GameSetupPhase;
+  numPlayersAtSetupStart: number;
+  playerRolls: PlayerRoll[];
+  definitionOrder?: string[];
+  currentPlayerIdToDefine?: string | null;
+  worldDefinition: WorldDefinition;
+  interferenceTokens?: { [playerId: string]: number };
+  // Add other setup related fields here, e.g., character creation progress
+}
+
 export interface GameServer {
-  id: string; // Firestore document ID
+  id: string;
   serverName: string;
   password?: string;
-  gmId: string; // Firebase UID of the GM
+  gmId: string;
   createdAt: FieldValue;
   players: PlayerInLobby[];
   status: GameServerStatus;
-  lastActivityAt: FieldValue; // Timestamp of the last meaningful activity
-  gmLastSeenAt: FieldValue; // Timestamp of when the GM was last active in the lobby
+  lastActivityAt: FieldValue;
+  gmLastSeenAt: FieldValue;
+  gameSetup?: GameSetupState;
 }

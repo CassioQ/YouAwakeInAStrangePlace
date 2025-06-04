@@ -23,18 +23,18 @@ import {
   GameServer,
   PlayerInLobby,
   GameServerStatus,
+  GameSetupState,
+  PlayerRoll,
 } from "../models/GameServer.types";
 import { UserProfile } from "../models/UserProfile.types";
-import { UserRole } from "../models/enums/CommomEnuns";
+import {
+  ScreenEnum,
+  UserRole,
+  GameSetupPhase,
+} from "../models/enums/CommomEnuns";
 
 const db = getFirestore();
-// const SERVER_CLEANUP_THRESHOLD_HOURS = 72; // No longer needed for client-side
 
-/**
- * Updates or creates a user profile in Firestore.
- * @param userId The UID of the user.
- * @param profileData Partial data to update the user profile.
- */
 export const updateUserProfile = async (
   userId: string,
   profileData: Partial<UserProfile>
@@ -48,11 +48,6 @@ export const updateUserProfile = async (
   }
 };
 
-/**
- * Fetches a user's profile from Firestore.
- * @param userId The UID of the user.
- * @returns The UserProfile object or null if not found/error.
- */
 export const fetchUserProfileData = async (
   userId: string
 ): Promise<UserProfile | null> => {
@@ -62,7 +57,6 @@ export const fetchUserProfileData = async (
     if (docSnap.exists()) {
       return docSnap.data() as UserProfile;
     }
-    // If profile doesn't exist, create a basic one
     const basicProfile: UserProfile = {
       userId,
       activeGmServerId: null,
@@ -77,12 +71,6 @@ export const fetchUserProfileData = async (
   }
 };
 
-/**
- * Updates the active server ID for a user.
- * @param userId The UID of the user.
- * @param role The role (GM or PLAYER) for which to set the active server.
- * @param serverId The ID of the server, or null to clear it.
- */
 export const updateUserActiveServerId = async (
   userId: string,
   role: UserRole,
@@ -97,11 +85,6 @@ export const updateUserActiveServerId = async (
   await updateUserProfile(userId, profileUpdate);
 };
 
-/**
- * Updates timestamps for a game server.
- * @param serverId The ID of the server.
- * @param isGmActive If true, updates gmLastSeenAt. Always updates lastActivityAt.
- */
 export const updateServerTimestamps = async (
   serverId: string,
   isGmActive: boolean = false
@@ -118,7 +101,6 @@ export const updateServerTimestamps = async (
     await updateDoc(serverDocRef, updateData);
   } catch (error) {
     console.error("Error updating server timestamps:", error);
-    // Don't throw, as this is a background update
   }
 };
 
@@ -315,9 +297,6 @@ export const deleteGameServer = async (
     if (serverSnap.exists()) {
       const serverData = serverSnap.data() as GameServer;
       if (serverData.gmId === gmId) {
-        // Optional: Notify players or clear their activePlayerServerId if they are in this server.
-        // This requires iterating through userProfiles, which can be complex and costly on client.
-        // For simplicity here, we're just deleting the server.
         await deleteDoc(serverDocRef);
         console.log(`Server ${serverId} deleted by GM ${gmId}`);
       } else {
@@ -330,31 +309,105 @@ export const deleteGameServer = async (
   }
 };
 
-export const startGame = async (serverId: string): Promise<boolean> => {
+export const startGame = async (
+  serverId: string,
+  playersInLobby: PlayerInLobby[]
+): Promise<boolean> => {
   const serverDocRef = doc(db, "gameServers", serverId);
   try {
+    const initialGameSetup: GameSetupState = {
+      currentPhase: GameSetupPhase.ROLLING,
+      numPlayersAtSetupStart: playersInLobby.length,
+      playerRolls: [],
+      worldDefinition: {},
+      definitionOrder: [],
+      interferenceTokens: {},
+      currentPlayerIdToDefine: null,
+    };
+
     await updateDoc(serverDocRef, {
       status: "in-progress" as GameServerStatus,
+      gameSetup: initialGameSetup, // Initialize gameSetup
       lastActivityAt: serverTimestamp(),
     });
     return true;
   } catch (error) {
-    console.error("Error starting game:", error);
+    console.error("Error starting game and initializing setup:", error);
     return false;
   }
 };
 
 export const listenToServerStatus = (
   serverId: string,
-  onStatusUpdate: (status: GameServerStatus) => void
+  onStatusUpdate: (status: GameServerStatus, gameSetup?: GameSetupState) => void
 ): Unsubscribe => {
   const serverDocRef = doc(db, "gameServers", serverId);
   return onSnapshot(serverDocRef, (docSnap) => {
     if (docSnap.exists()) {
       const serverData = docSnap.data() as GameServer;
-      onStatusUpdate(serverData.status || "lobby");
+      onStatusUpdate(serverData.status || "lobby", serverData.gameSetup);
     } else {
-      onStatusUpdate("lobby");
+      onStatusUpdate("lobby", undefined);
     }
   });
+};
+
+export const listenToGameSetup = (
+  serverId: string,
+  onGameSetupUpdate: (gameSetup?: GameSetupState) => void
+): Unsubscribe => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  return onSnapshot(serverDocRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const serverData = docSnap.data() as GameServer;
+      onGameSetupUpdate(serverData.gameSetup);
+    } else {
+      onGameSetupUpdate(undefined);
+    }
+  });
+};
+
+export const submitPlayerRoll = async (
+  serverId: string,
+  playerId: string,
+  playerName: string,
+  rollValue: number
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  const playerRollData: PlayerRoll = {
+    playerId,
+    playerName,
+    rollValue,
+    rolledAt: new Date(),
+  };
+
+  try {
+    // It's important to ensure that a player can only add their roll once.
+    // A more robust way would be a transaction or a cloud function.
+    // For client-side, we'll rely on UI disabling after roll.
+    // We also need to fetch the document to not overwrite existing rolls.
+    const serverSnap = await getDoc(serverDocRef);
+    if (!serverSnap.exists()) {
+      throw new Error("Servidor não encontrado para submeter rolagem.");
+    }
+    const serverData = serverSnap.data() as GameServer;
+    const gameSetup = serverData.gameSetup;
+
+    if (
+      gameSetup &&
+      gameSetup.playerRolls.find((p) => p.playerId === playerId)
+    ) {
+      console.warn(`Player ${playerId} already rolled.`);
+      return; // Already rolled
+    }
+
+    await updateDoc(serverDocRef, {
+      "gameSetup.playerRolls": arrayUnion(playerRollData),
+      "gameSetup.lastRollAt": serverTimestamp(), // Optional: track last roll time for ordering
+      lastActivityAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error submitting player roll:", error);
+    throw new Error("Falha ao submeter rolagem de dados.");
+  }
 };

@@ -12,6 +12,8 @@ export enum ScreenEnum {
   CREATE_SERVER = "CREATE_SERVER",
   GM_LOBBY = "GM_LOBBY",
   PLAYER_LOBBY = "PLAYER_LOBBY",
+  GAME_SETUP_PLAYER = "GAME_SETUP_PLAYER",
+  GAME_SETUP_GM_MONITOR = "GAME_SETUP_GM_MONITOR",
   GAME_IN_PROGRESS_PLAYER = "GAME_IN_PROGRESS_PLAYER",
   GAME_IN_PROGRESS_GM = "GAME_IN_PROGRESS_GM",
   CHARACTER_CREATE_THEME = "CHARACTER_CREATE_THEME",
@@ -30,4 +32,13 @@ export enum CharacterSheetTab {
   SKILLS = "Habilidades",
   ITEMS = "Itens",
   OBJECTIVE = "Objetivo",
+}
+
+export enum GameSetupPhase {
+  ROLLING = "rolling",
+  DEFINING_GENRE = "defining_genre",
+  DEFINING_ADJECTIVE = "defining_adjective",
+  DEFINING_LOCATION = "defining_location",
+  CHARACTER_CREATION = "character_creation",
+  READY_TO_PLAY = "ready_to_play",
 }

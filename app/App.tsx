@@ -24,6 +24,8 @@ import HomeScreen from "./pages/HomeScreen";
 import CreateServerScreen from "./pages/gm/CreateServerScreen";
 import GMLobbyScreen from "./pages/gm/GMLobbyScreen";
 import PlayerLobbyScreen from "./pages/player/PlayerLobbyScreen";
+import GMGameSetupMonitorScreen from "./pages/game_setup/GMGameSetupMonitorScreen";
+import GameSetupScreen from "./pages/game_setup/GameSetupScreen";
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
@@ -69,8 +71,12 @@ const AppContent: React.FC = () => {
       return <CreateServerScreen />;
     case ScreenEnum.GM_LOBBY:
       return <GMLobbyScreen />;
-    case ScreenEnum.PLAYER_LOBBY: // New navigation case
+    case ScreenEnum.PLAYER_LOBBY:
       return <PlayerLobbyScreen />;
+    case ScreenEnum.GAME_SETUP_PLAYER:
+      return <GameSetupScreen />;
+    case ScreenEnum.GAME_SETUP_GM_MONITOR:
+      return <GMGameSetupMonitorScreen />;
     case ScreenEnum.CHARACTER_CREATE_THEME:
       return <CharacterDevThemeScreen />;
     case ScreenEnum.CHARACTER_CREATE_DETAILS:
