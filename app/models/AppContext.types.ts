@@ -1,11 +1,11 @@
-import { Character } from "./Character.types";
+import { Character, Skill } from "./Character.types";
 import { ScreenEnum, UserRole } from "./enums/CommomEnuns";
-import { User as FirebaseUser } from "firebase/auth"; // Import Firebase User type
+import { User as FirebaseUser } from "firebase/auth";
+import { GameServer, PlayerInLobby } from "./GameServer.types";
 
 export interface AppContextType {
   currentUser: FirebaseUser | null;
   isLoadingAuth: boolean;
-  // setUser: (user: FirebaseUser | null) => void; // Handled by onAuthStateChanged
 
   userRole: UserRole | null;
   setUserRole: (role: UserRole | null) => void;
@@ -23,6 +23,10 @@ export interface AppContextType {
   finalizeCharacter: () => Character | null;
   createdCharacter: Character | null;
   setCreatedCharacter: (character: Character | null) => void;
+
+  // GM Server Management
+  activeServerDetails: GameServer | null;
+  setActiveServerDetails: (details: GameServer | null) => void; // For GM viewing their created server
 
   // Auth functions
   loginWithGoogle: () => Promise<FirebaseUser | null>;

@@ -9,26 +9,40 @@ import { Alert, Platform } from "react-native";
 import { AppContextType } from "../models/AppContext.types";
 import { Character } from "../models/Character.types";
 import { ScreenEnum, UserRole } from "../models/enums/CommomEnuns";
+import { GameServer, PlayerInLobby } from "../models/GameServer.types";
 import {
   auth,
   onAuthStateChanged,
   User as FirebaseUser,
   GoogleAuthProvider,
   FacebookAuthProvider,
-  signInWithCredential, // Changed from signInWithPopup
+  signInWithCredential,
   signOut as firebaseSignOut,
-  updateProfile, // Added for updating profile after social sign-in if needed
+  updateProfile,
 } from "../../firebase";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  onSnapshot,
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  arrayUnion,
+  FieldValue,
+} from "firebase/firestore";
 
 // Expo Auth Session
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import * as Facebook from "expo-auth-session/providers/facebook";
-import { makeRedirectUri, useAuthRequestResult } from "expo-auth-session";
 
-// Environment variables for client IDs (ensure these are in your .env and env.d.ts)
 import {
-  EXPO_GOOGLE_CLIENT_ID, // For Expo Go & Web
+  EXPO_GOOGLE_CLIENT_ID,
   IOS_GOOGLE_CLIENT_ID,
   ANDROID_GOOGLE_CLIENT_ID,
   FACEBOOK_APP_ID,
@@ -72,6 +86,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [createdCharacter, setCreatedCharacterState] =
     useState<Character | null>(null);
 
+  // GM Server Management
+  const [activeServerDetails, setActiveServerDetailsState] =
+    useState<GameServer | null>(null);
+
+  const db = getFirestore();
+
   // Google Auth Request
   const [googleRequest, googleResponse, promptGoogleAsync] =
     Google.useIdTokenAuthRequest({
@@ -79,14 +99,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       webClientId: EXPO_GOOGLE_CLIENT_ID,
       iosClientId: IOS_GOOGLE_CLIENT_ID,
       androidClientId: ANDROID_GOOGLE_CLIENT_ID,
-      //redirectUri: makeRedirectUri(), // Optional: if you need to override
     });
 
   // Facebook Auth Request
   const [facebookRequest, facebookResponse, promptFacebookAsync] =
     Facebook.useAuthRequest({
       clientId: FACEBOOK_APP_ID,
-      //redirectUri: makeRedirectUri(), // Optional: if you need to override
     });
 
   useEffect(() => {
@@ -100,6 +118,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setUserRoleState(null);
         resetCharacterInProgress();
         setCreatedCharacterState(null);
+        setActiveServerDetailsState(null); // Reset active server on logout
       } else {
         if (openAccessScreens()) {
           navigateTo(ScreenEnum.HOME);
@@ -107,7 +126,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
     });
     return () => unsubscribe();
-  }, [currentScreen]); // Added currentScreen dependency
+  }, [currentScreen]);
 
   function openAccessScreens(): boolean {
     return (
@@ -117,20 +136,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     );
   }
 
-  // Effect to handle Google Sign-In response
   useEffect(() => {
     if (googleResponse?.type === "success") {
       const { id_token } = googleResponse.params;
       if (id_token) {
         const credential = GoogleAuthProvider.credential(id_token);
         signInWithCredential(auth, credential)
-          .then((userCredential) => {
-            // User signed in, onAuthStateChanged will handle navigation
-            // You might want to update the user's profile here if needed,
-            // e.g., if Firebase doesn't automatically pick up the display name
-            // from the Google profile for new users.
-            // However, signInWithCredential usually handles this.
-          })
           .catch((error) => {
             console.error("Google Sign-In to Firebase error:", error);
             Alert.alert(
@@ -148,7 +159,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       googleResponse?.type === "cancel" ||
       googleResponse?.type === "dismiss"
     ) {
-      console.log("Google login cancelled or failed:", googleResponse);
       if (
         googleResponse?.type !== "cancel" &&
         googleResponse?.type !== "dismiss"
@@ -159,16 +169,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [googleResponse]);
 
-  // Effect to handle Facebook Sign-In response
   useEffect(() => {
     if (facebookResponse?.type === "success") {
       const { access_token } = facebookResponse.params;
       if (access_token) {
         const credential = FacebookAuthProvider.credential(access_token);
         signInWithCredential(auth, credential)
-          .then((userCredential) => {
-            // User signed in, onAuthStateChanged will handle navigation
-          })
           .catch((error) => {
             console.error("Facebook Sign-In to Firebase error:", error);
             Alert.alert(
@@ -186,7 +192,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       facebookResponse?.type === "cancel" ||
       facebookResponse?.type === "dismiss"
     ) {
-      console.log("Facebook login cancelled or failed:", facebookResponse);
       if (
         facebookResponse?.type !== "cancel" &&
         facebookResponse?.type !== "dismiss"
@@ -201,15 +206,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptGoogleAsync();
-      // The response will be handled by the useEffect hook for googleResponse
-      // Returning null here as the actual user object will be set by onAuthStateChanged
       return null;
     } catch (error: any) {
-      console.error("Google login prompt error:", error);
-      Alert.alert(
-        "Erro de Login",
-        "Não foi possível iniciar o login com Google."
-      );
       setIsLoadingAuth(false);
       return null;
     }
@@ -219,14 +217,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptFacebookAsync();
-      // The response will be handled by the useEffect hook for facebookResponse
       return null;
     } catch (error: any) {
-      console.error("Facebook login prompt error:", error);
-      Alert.alert(
-        "Erro de Login",
-        "Não foi possível iniciar o login com Facebook."
-      );
       setIsLoadingAuth(false);
       return null;
     }
@@ -236,17 +228,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await firebaseSignOut(auth);
-      setCurrentUser(null);
-      setUserRoleState(null);
-      resetCharacterInProgress();
-      setCreatedCharacterState(null);
-      navigateTo(ScreenEnum.LOGIN);
+      // State will be cleared by onAuthStateChanged
     } catch (error: any) {
       Alert.alert(
         "Erro de Logout",
         error.message || "Não foi possível fazer logout."
       );
-      console.error("Logout error:", error);
     } finally {
       setIsLoadingAuth(false);
     }
@@ -295,7 +282,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       primarySkillName: characterInProgress.primarySkillName,
       avatarUrl:
         currentUser?.photoURL ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(characterInProgress.name || "A")}&background=random&size=100`,
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          characterInProgress.name || "A"
+        )}&background=random&size=100`,
       themeImageURL:
         characterInProgress.themeImageURL ||
         "https://images.unsplash.com/photo-1531297484001-80022131f5a1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y3liZXJwdW5rfGVufDB8fDB8fHww&auto=format&fit=crop&w=500&q=60",
@@ -341,6 +330,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setCreatedCharacterState(character);
   }, []);
 
+  const setActiveServerDetails = useCallback((details: GameServer | null) => {
+    setActiveServerDetailsState(details);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -356,6 +349,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         finalizeCharacter,
         createdCharacter,
         setCreatedCharacter,
+        activeServerDetails,
+        setActiveServerDetails,
         loginWithGoogle,
         loginWithFacebook,
         logout,

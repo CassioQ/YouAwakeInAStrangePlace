@@ -21,12 +21,13 @@ import CharacterDevNameDescScreen from "./pages/CharacterDevNameDescScreen";
 import CharacterDevThemeScreen from "./pages/CharacterDevThemeScreen";
 import CharacterSheetScreen from "./pages/CharacterSheetScreen";
 import HomeScreen from "./pages/HomeScreen";
+import CreateServerScreen from "./pages/gm/CreateServerScreen";
+import GMLobbyScreen from "./pages/gm/GMLobbyScreen";
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
 
   if (!context) {
-    // Should not happen if AppProvider is set up correctly
     return (
       <View style={styles.loadingContainer}>
         <Text>Error: Context not available.</Text>
@@ -46,7 +47,6 @@ const AppContent: React.FC = () => {
   }
 
   if (!currentUser) {
-    // User is not authenticated, show auth screens
     switch (currentScreen) {
       case ScreenEnum.LOGIN:
         return <LoginScreen />;
@@ -55,17 +55,19 @@ const AppContent: React.FC = () => {
       case ScreenEnum.EMAIL_SIGNUP:
         return <EmailSignUpScreen />;
       default:
-        // Fallback to LoginScreen if no user and currentScreen is not an auth one
         return <LoginScreen />;
     }
   }
 
-  // User is authenticated, show app screens
   switch (currentScreen) {
     case ScreenEnum.HOME:
       return <HomeScreen />;
-    case ScreenEnum.ACCESS_SERVER:
+    case ScreenEnum.ACCESS_SERVER: // Player joining a server
       return <AccessScreen />;
+    case ScreenEnum.CREATE_SERVER: // GM creating a server
+      return <CreateServerScreen />;
+    case ScreenEnum.GM_LOBBY: // GM managing their server
+      return <GMLobbyScreen />;
     case ScreenEnum.CHARACTER_CREATE_THEME:
       return <CharacterDevThemeScreen />;
     case ScreenEnum.CHARACTER_CREATE_DETAILS:
@@ -75,7 +77,6 @@ const AppContent: React.FC = () => {
     case ScreenEnum.CHARACTER_SHEET:
       return <CharacterSheetScreen />;
     default:
-      // If logged in and currentScreen is an auth screen, redirect to HOME
       if (
         currentScreen === ScreenEnum.LOGIN ||
         currentScreen === ScreenEnum.EMAIL_LOGIN ||
@@ -83,7 +84,7 @@ const AppContent: React.FC = () => {
       ) {
         return <HomeScreen />;
       }
-      return <HomeScreen />; // Fallback for any other case
+      return <HomeScreen />;
   }
 };
 

@@ -25,7 +25,8 @@ const HomeScreen: React.FC = () => {
     if (role === UserRole.PLAYER) {
       navigateTo(ScreenEnum.CHARACTER_CREATE_THEME);
     } else {
-      navigateTo(ScreenEnum.ACCESS_SERVER);
+      // GM flow
+      navigateTo(ScreenEnum.CREATE_SERVER); // Changed from ACCESS_SERVER
     }
   };
 
@@ -45,7 +46,7 @@ const HomeScreen: React.FC = () => {
           <View style={{ height: 16 }} />
           <StyledButton
             onPress={() => handleRoleSelection(UserRole.GM)}
-            accessibilityLabel="Selecionar papel de Mestre e acessar servidor"
+            accessibilityLabel="Selecionar papel de Mestre e criar servidor"
             props_variant="secondary"
           >
             Mestre
