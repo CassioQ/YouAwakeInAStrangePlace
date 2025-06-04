@@ -12,6 +12,7 @@
     "@expo/metro-runtime": "~5.0.4",
     "dotenv": "^16.5.0",
     "expo": "^53.0.9",
+    "expo-apple-authentication": "~7.2.4",
     "expo-auth-session": "~6.1.5",
     "expo-build-properties": "~0.14.6",
     "expo-random": "^14.0.1",
@@ -22,8 +23,7 @@
     "react-dom": "^19.1.0",
     "react-native": "^0.79.2",
     "react-native-dotenv": "^3.4.11",
-    "react-native-web": "^0.20.0",
-    "expo-apple-authentication": "~7.2.4"
+    "react-native-web": "^0.20.0"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",
@@ -31,7 +31,6 @@
     "@testing-library/react-native": "^13.2.0",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.6",
-    "@types/react-native": "^0.72.8",
     "@types/react-native-dotenv": "^0.2.2",
     "babel-plugin-dotenv-import": "^3.0.1",
     "eslint-config-prettier": "^10.1.5",
