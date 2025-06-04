@@ -7,4 +7,9 @@ declare module "@env" {
   export const FB_APP_ID: string;
   export const FB_MEASUREMENT_ID: string;
   export const FB_DATABASE_URL: string;
+
+  export const EXPO_GOOGLE_CLIENT_ID: string;
+  export const IOS_GOOGLE_CLIENT_ID: string;
+  export const ANDROID_GOOGLE_CLIENT_ID: string;
+  export const FACEBOOK_APP_ID: string;
 }

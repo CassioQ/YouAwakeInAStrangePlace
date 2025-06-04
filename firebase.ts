@@ -1,16 +1,18 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp, type FirebaseApp } from "firebase/app"; // Changed import
+import { initializeApp } from "firebase/app";
+import type { FirebaseApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
   FacebookAuthProvider,
-  signInWithPopup,
+  signInWithPopup, // Kept for reference, but won't be used for native
+  signInWithCredential,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   updateProfile,
-  type User, // Changed to type import
+  type User,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -50,7 +52,8 @@ const functionsInstance = getFunctions(app); // Specify region if necessary e.g.
 export {
   GoogleAuthProvider,
   FacebookAuthProvider,
-  signInWithPopup,
+  signInWithPopup, // Kept for reference
+  signInWithCredential, // Exported
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,

@@ -13,7 +13,6 @@ export enum ScreenEnum {
   CHARACTER_CREATE_DETAILS = "CHARACTER_CREATE_DETAILS", // Genre, Adjective, Place
   CHARACTER_CREATE_NAME_DESC_SKILL = "CHARACTER_CREATE_NAME_DESC_SKILL", // Name, Description, Primary Skill
   CHARACTER_SHEET = "CHARACTER_SHEET",
-  // Add more screens as needed
 }
 
 export enum CharacterCreationStep {

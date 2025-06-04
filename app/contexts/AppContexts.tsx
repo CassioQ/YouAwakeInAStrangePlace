@@ -5,7 +5,7 @@ import React, {
   ReactNode,
   useEffect,
 } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import { AppContextType } from "../models/AppContext.types";
 import { Character } from "../models/Character.types";
 import { ScreenEnum, UserRole } from "../models/enums/CommomEnuns";
@@ -15,9 +15,30 @@ import {
   User as FirebaseUser,
   GoogleAuthProvider,
   FacebookAuthProvider,
-  signInWithPopup,
+  signInWithCredential, // Changed from signInWithPopup
   signOut as firebaseSignOut,
-} from "../../firebase"; // Corrected path
+  updateProfile, // Added for updating profile after social sign-in if needed
+} from "../../firebase";
+
+// Expo Auth Session
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import * as Facebook from "expo-auth-session/providers/facebook";
+import { makeRedirectUri, useAuthRequestResult } from "expo-auth-session";
+
+// Environment variables for client IDs (ensure these are in your .env and env.d.ts)
+import {
+  EXPO_GOOGLE_CLIENT_ID, // For Expo Go & Web
+  IOS_GOOGLE_CLIENT_ID,
+  ANDROID_GOOGLE_CLIENT_ID,
+  FACEBOOK_APP_ID,
+} from "@env";
+
+import * as AuthSession from "expo-auth-session";
+
+console.log("Redirect URI:", AuthSession.makeRedirectUri());
+
+WebBrowser.maybeCompleteAuthSession();
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -51,59 +72,164 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [createdCharacter, setCreatedCharacterState] =
     useState<Character | null>(null);
 
+  // Google Auth Request
+  const [googleRequest, googleResponse, promptGoogleAsync] =
+    Google.useIdTokenAuthRequest({
+      clientId: EXPO_GOOGLE_CLIENT_ID,
+      webClientId: EXPO_GOOGLE_CLIENT_ID,
+      iosClientId: IOS_GOOGLE_CLIENT_ID,
+      androidClientId: ANDROID_GOOGLE_CLIENT_ID,
+      //redirectUri: makeRedirectUri(), // Optional: if you need to override
+    });
+
+  // Facebook Auth Request
+  const [facebookRequest, facebookResponse, promptFacebookAsync] =
+    Facebook.useAuthRequest({
+      clientId: FACEBOOK_APP_ID,
+      //redirectUri: makeRedirectUri(), // Optional: if you need to override
+    });
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setIsLoadingAuth(false);
       if (!user) {
-        // If user logs out or no session, navigate to login
-        navigateTo(ScreenEnum.LOGIN);
-        setUserRoleState(null); // Clear role on logout
+        if (!openAccessScreens()) {
+          navigateTo(ScreenEnum.LOGIN);
+        }
+        setUserRoleState(null);
         resetCharacterInProgress();
         setCreatedCharacterState(null);
       } else {
-        // If user is logged in, and they were on a login/signup screen, navigate to home
-        if (
-          currentScreen === ScreenEnum.LOGIN ||
-          currentScreen === ScreenEnum.EMAIL_LOGIN ||
-          currentScreen === ScreenEnum.EMAIL_SIGNUP
-        ) {
+        if (openAccessScreens()) {
           navigateTo(ScreenEnum.HOME);
         }
       }
     });
-    return () => unsubscribe(); // Cleanup subscription on unmount
-  }, []);
+    return () => unsubscribe();
+  }, [currentScreen]); // Added currentScreen dependency
 
-  const loginWithProvider = async (
-    provider: GoogleAuthProvider | FacebookAuthProvider
-  ): Promise<FirebaseUser | null> => {
+  function openAccessScreens(): boolean {
+    return (
+      currentScreen === ScreenEnum.LOGIN ||
+      currentScreen === ScreenEnum.EMAIL_LOGIN ||
+      currentScreen === ScreenEnum.EMAIL_SIGNUP
+    );
+  }
+
+  // Effect to handle Google Sign-In response
+  useEffect(() => {
+    if (googleResponse?.type === "success") {
+      const { id_token } = googleResponse.params;
+      if (id_token) {
+        const credential = GoogleAuthProvider.credential(id_token);
+        signInWithCredential(auth, credential)
+          .then((userCredential) => {
+            // User signed in, onAuthStateChanged will handle navigation
+            // You might want to update the user's profile here if needed,
+            // e.g., if Firebase doesn't automatically pick up the display name
+            // from the Google profile for new users.
+            // However, signInWithCredential usually handles this.
+          })
+          .catch((error) => {
+            console.error("Google Sign-In to Firebase error:", error);
+            Alert.alert(
+              "Erro de Login",
+              "Não foi possível fazer login com Google via Firebase."
+            );
+          })
+          .finally(() => setIsLoadingAuth(false));
+      } else {
+        Alert.alert("Erro de Login", "Token do Google não recebido.");
+        setIsLoadingAuth(false);
+      }
+    } else if (
+      googleResponse?.type === "error" ||
+      googleResponse?.type === "cancel" ||
+      googleResponse?.type === "dismiss"
+    ) {
+      console.log("Google login cancelled or failed:", googleResponse);
+      if (
+        googleResponse?.type !== "cancel" &&
+        googleResponse?.type !== "dismiss"
+      ) {
+        Alert.alert("Erro de Login", "Falha ao autenticar com Google.");
+      }
+      setIsLoadingAuth(false);
+    }
+  }, [googleResponse]);
+
+  // Effect to handle Facebook Sign-In response
+  useEffect(() => {
+    if (facebookResponse?.type === "success") {
+      const { access_token } = facebookResponse.params;
+      if (access_token) {
+        const credential = FacebookAuthProvider.credential(access_token);
+        signInWithCredential(auth, credential)
+          .then((userCredential) => {
+            // User signed in, onAuthStateChanged will handle navigation
+          })
+          .catch((error) => {
+            console.error("Facebook Sign-In to Firebase error:", error);
+            Alert.alert(
+              "Erro de Login",
+              "Não foi possível fazer login com Facebook via Firebase."
+            );
+          })
+          .finally(() => setIsLoadingAuth(false));
+      } else {
+        Alert.alert("Erro de Login", "Token do Facebook não recebido.");
+        setIsLoadingAuth(false);
+      }
+    } else if (
+      facebookResponse?.type === "error" ||
+      facebookResponse?.type === "cancel" ||
+      facebookResponse?.type === "dismiss"
+    ) {
+      console.log("Facebook login cancelled or failed:", facebookResponse);
+      if (
+        facebookResponse?.type !== "cancel" &&
+        facebookResponse?.type !== "dismiss"
+      ) {
+        Alert.alert("Erro de Login", "Falha ao autenticar com Facebook.");
+      }
+      setIsLoadingAuth(false);
+    }
+  }, [facebookResponse]);
+
+  const loginWithGoogle = async (): Promise<FirebaseUser | null> => {
     setIsLoadingAuth(true);
     try {
-      const result = await signInWithPopup(auth, provider);
-      setCurrentUser(result.user);
-      navigateTo(ScreenEnum.HOME);
-      return result.user;
+      await promptGoogleAsync();
+      // The response will be handled by the useEffect hook for googleResponse
+      // Returning null here as the actual user object will be set by onAuthStateChanged
+      return null;
     } catch (error: any) {
+      console.error("Google login prompt error:", error);
       Alert.alert(
         "Erro de Login",
-        error.message || "Não foi possível fazer login."
+        "Não foi possível iniciar o login com Google."
       );
-      console.error("Login error:", error);
-      return null;
-    } finally {
       setIsLoadingAuth(false);
+      return null;
     }
   };
 
-  const loginWithGoogle = async (): Promise<FirebaseUser | null> => {
-    const provider = new GoogleAuthProvider();
-    return loginWithProvider(provider);
-  };
-
   const loginWithFacebook = async (): Promise<FirebaseUser | null> => {
-    const provider = new FacebookAuthProvider();
-    return loginWithProvider(provider);
+    setIsLoadingAuth(true);
+    try {
+      await promptFacebookAsync();
+      // The response will be handled by the useEffect hook for facebookResponse
+      return null;
+    } catch (error: any) {
+      console.error("Facebook login prompt error:", error);
+      Alert.alert(
+        "Erro de Login",
+        "Não foi possível iniciar o login com Facebook."
+      );
+      setIsLoadingAuth(false);
+      return null;
+    }
   };
 
   const logout = async (): Promise<void> => {
@@ -114,7 +240,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setUserRoleState(null);
       resetCharacterInProgress();
       setCreatedCharacterState(null);
-      navigateTo(ScreenEnum.LOGIN); // Navigate to login screen after logout
+      navigateTo(ScreenEnum.LOGIN);
     } catch (error: any) {
       Alert.alert(
         "Erro de Logout",
