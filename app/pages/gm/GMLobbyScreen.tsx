@@ -13,14 +13,20 @@ import ScreenWrapper from "../../components/ScreenWrapper";
 import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import { AppContext } from "../../contexts/AppContexts";
-import { PlayerInLobby, GameServer } from "../../models/GameServer.types";
+import {
+  PlayerInLobby,
+  GameServer,
+  GameServerStatus,
+} from "../../models/GameServer.types";
 import {
   listenToLobbyPlayers,
   getGameServerDetails,
+  startGame,
+  listenToServerStatus,
 } from "../../services/firebaseServices";
 import { ScreenEnum } from "../../models/enums/CommomEnuns";
 import { Unsubscribe } from "firebase/firestore";
-import StyledButton from "../../components/StyledButton"; // Import StyledButton
+import StyledButton from "../../components/StyledButton";
 
 const defaultAvatar =
   "https://ui-avatars.com/api/?name=P&background=random&size=60";
@@ -30,25 +36,37 @@ const GMLobbyScreen: React.FC = () => {
   const [serverDetails, setServerDetails] = useState<GameServer | null>(null);
   const [lobbyPlayers, setLobbyPlayers] = useState<PlayerInLobby[]>([]);
   const [loadingServer, setLoadingServer] = useState(true);
+  const [startingGame, setStartingGame] = useState(false);
 
   if (!context) return null;
   const { activeServerDetails, navigateTo, setActiveServerDetails } = context;
 
   useEffect(() => {
     let unsubscribePlayerListener: Unsubscribe | null = null;
+    let unsubscribeStatusListener: Unsubscribe | null = null;
 
     const fetchAndListen = async () => {
       if (activeServerDetails?.id) {
         setLoadingServer(true);
-        // Fetch initial details once if not fully populated or to confirm
         const details = await getGameServerDetails(activeServerDetails.id);
         if (details) {
           setServerDetails(details);
-          // Set up listener for players
+          setActiveServerDetails(details);
+
           unsubscribePlayerListener = listenToLobbyPlayers(
             activeServerDetails.id,
             (players) => {
               setLobbyPlayers(players);
+            }
+          );
+          unsubscribeStatusListener = listenToServerStatus(
+            activeServerDetails.id,
+            (status) => {
+              setServerDetails((prev) => (prev ? { ...prev, status } : null));
+              if (status === "in-progress") {
+                Alert.alert("Jogo Iniciado!", "A partida começou.");
+                navigateTo(ScreenEnum.GAME_IN_PROGRESS_GM);
+              }
             }
           );
         } else {
@@ -56,7 +74,7 @@ const GMLobbyScreen: React.FC = () => {
             "Erro",
             "Não foi possível carregar os detalhes do servidor."
           );
-          navigateTo(ScreenEnum.HOME); // Or CREATE_SERVER
+          navigateTo(ScreenEnum.HOME);
         }
         setLoadingServer(false);
       } else {
@@ -68,15 +86,25 @@ const GMLobbyScreen: React.FC = () => {
     fetchAndListen();
 
     return () => {
-      if (unsubscribePlayerListener) {
-        unsubscribePlayerListener();
-      }
+      if (unsubscribePlayerListener) unsubscribePlayerListener();
+      if (unsubscribeStatusListener) unsubscribeStatusListener();
     };
-  }, [activeServerDetails?.id, navigateTo]);
+  }, [activeServerDetails?.id, navigateTo, setActiveServerDetails]);
 
   const handleReturnHome = () => {
-    setActiveServerDetails(null); // Clear active server when GM leaves lobby
+    setActiveServerDetails(null);
     navigateTo(ScreenEnum.HOME);
+  };
+
+  const handleStartGame = async () => {
+    if (!serverDetails?.id || lobbyPlayers.length === 0) return;
+    setStartingGame(true);
+    const success = await startGame(serverDetails.id);
+    if (!success) {
+      Alert.alert("Erro", "Não foi possível iniciar a partida.");
+    }
+    // Listener will handle navigation if successful
+    setStartingGame(false);
   };
 
   if (loadingServer) {
@@ -105,27 +133,8 @@ const GMLobbyScreen: React.FC = () => {
     );
   }
 
-  const renderPlayerItem = ({ item }: { item: PlayerInLobby }) => (
-    <View style={[styles.playerCard, commonStyles.shadow]}>
-      <Image
-        source={{ uri: item.avatarUrl || defaultAvatar }}
-        style={styles.playerAvatar}
-      />
-      <View style={styles.playerInfo}>
-        <Text style={styles.playerName}>{item.playerName}</Text>
-        <Text style={styles.characterName}>
-          Personagem: {item.characterName}
-        </Text>
-        <Text style={styles.skillsTitle}>Habilidades:</Text>
-        {item.skills.map((skill, index) => (
-          <Text key={index} style={styles.skillText}>
-            - {skill.name} (
-            {skill.modifier >= 0 ? `+${skill.modifier}` : skill.modifier})
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
+  const canStartGame =
+    lobbyPlayers.length > 0 && serverDetails.status === "lobby";
 
   return (
     <ScreenWrapper title="LOBBY DO MESTRE">
@@ -143,7 +152,32 @@ const GMLobbyScreen: React.FC = () => {
           <Text style={styles.infoValue}>
             {serverDetails.password || "(Servidor Aberto)"}
           </Text>
+          <Text style={styles.infoLabel}>Status:</Text>
+          <Text
+            style={[
+              styles.infoValue,
+              {
+                color:
+                  serverDetails.status === "in-progress"
+                    ? colors.success
+                    : colors.textPrimary,
+              },
+            ]}
+          >
+            {serverDetails.status === "lobby" && "Aguardando Jogadores"}
+            {serverDetails.status === "in-progress" && "Partida em Andamento"}
+            {serverDetails.status === "finished" && "Partida Finalizada"}
+          </Text>
         </View>
+
+        <StyledButton
+          onPress={handleStartGame}
+          disabled={!canStartGame || startingGame}
+          props_variant="primary"
+          style={styles.startGameButton}
+        >
+          {startingGame ? "Iniciando..." : "INICIAR PARTIDA"}
+        </StyledButton>
 
         <Text style={styles.playersHeader}>
           Jogadores no Lobby ({lobbyPlayers.length})
@@ -153,15 +187,48 @@ const GMLobbyScreen: React.FC = () => {
         ) : (
           <FlatList
             data={lobbyPlayers}
-            renderItem={renderPlayerItem}
-            keyExtractor={(item) => item.userId + "_" + item.characterId} // Ensure unique key
+            renderItem={({ item }: { item: PlayerInLobby }) => (
+              <View style={[styles.playerCard, commonStyles.shadow]}>
+                <Image
+                  source={{ uri: item.avatarUrl || defaultAvatar }}
+                  style={styles.playerAvatar}
+                />
+                <View style={styles.playerInfo}>
+                  <Text style={styles.playerName}>{item.playerName}</Text>
+                  <Text style={styles.characterName}>
+                    Personagem: {item.characterName || "Aguardando..."}
+                  </Text>
+                  {item.skills && item.skills.length > 0 ? (
+                    <>
+                      <Text style={styles.skillsTitle}>Habilidades:</Text>
+                      {item.skills.map((skill, index) => (
+                        <Text key={index} style={styles.skillText}>
+                          - {skill.name} (
+                          {skill.modifier >= 0
+                            ? `+${skill.modifier}`
+                            : skill.modifier}
+                          )
+                        </Text>
+                      ))}
+                    </>
+                  ) : (
+                    <Text style={styles.skillText}>
+                      Habilidades ainda não definidas.
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+            keyExtractor={(item) =>
+              item.userId + "_" + (item.characterId || "nochar")
+            }
             contentContainerStyle={styles.playerList}
           />
         )}
         <StyledButton
           onPress={handleReturnHome}
           props_variant="secondary"
-          style={{ marginTop: 20 }}
+          style={styles.closeLobbyButton}
         >
           Fechar Lobby e Voltar
         </StyledButton>
@@ -195,7 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundPaper,
     padding: 15,
     borderRadius: 8,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   infoLabel: {
     fontSize: 14,
@@ -208,6 +275,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 8,
     paddingLeft: 5,
+  },
+  startGameButton: {
+    marginBottom: 20,
   },
   playersHeader: {
     fontSize: 18,
@@ -266,6 +336,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 20,
     fontStyle: "italic",
+  },
+  closeLobbyButton: {
+    marginTop: 20,
   },
 });
 

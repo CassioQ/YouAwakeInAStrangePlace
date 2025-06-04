@@ -49,6 +49,16 @@ const CharacterDevThemeScreen: React.FC = () => {
           OK
         </StyledButton>
       </View>
+
+      <View style={styles.buttonWrapper}>
+        <StyledButton
+          onPress={() => navigateTo(ScreenEnum.HOME)}
+          props_variant="secondary"
+          style={{ marginTop: 10 }}
+        >
+          Voltar
+        </StyledButton>
+      </View>
     </ScreenWrapper>
   );
 };

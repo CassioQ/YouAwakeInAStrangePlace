@@ -86,7 +86,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [createdCharacter, setCreatedCharacterState] =
     useState<Character | null>(null);
 
-  // GM Server Management
+  // Server Management (used by GM and Player once joined)
   const [activeServerDetails, setActiveServerDetailsState] =
     useState<GameServer | null>(null);
 
@@ -118,7 +118,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setUserRoleState(null);
         resetCharacterInProgress();
         setCreatedCharacterState(null);
-        setActiveServerDetailsState(null); // Reset active server on logout
+        setActiveServerDetailsState(null);
       } else {
         if (openAccessScreens()) {
           navigateTo(ScreenEnum.HOME);

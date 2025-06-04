@@ -11,22 +11,16 @@ const HomeScreen: React.FC = () => {
   const context = useContext(AppContext);
 
   if (!context) return null;
-  const {
-    setUserRole,
-    navigateTo,
-    resetCharacterInProgress,
-    setCreatedCharacter,
-  } = context;
+  const { setUserRole, navigateTo } = context;
 
   const handleRoleSelection = (role: UserRole) => {
     setUserRole(role);
-    resetCharacterInProgress();
-    setCreatedCharacter(null);
+    // Character creation is now deferred, so no need to reset/clear character here
     if (role === UserRole.PLAYER) {
-      navigateTo(ScreenEnum.CHARACTER_CREATE_THEME);
+      navigateTo(ScreenEnum.ACCESS_SERVER); // Players go directly to Access Screen
     } else {
       // GM flow
-      navigateTo(ScreenEnum.CREATE_SERVER); // Changed from ACCESS_SERVER
+      navigateTo(ScreenEnum.CREATE_SERVER);
     }
   };
 
@@ -38,7 +32,7 @@ const HomeScreen: React.FC = () => {
         <View style={styles.buttonContainer}>
           <StyledButton
             onPress={() => handleRoleSelection(UserRole.PLAYER)}
-            accessibilityLabel="Selecionar papel de Jogador e iniciar criação de personagem"
+            accessibilityLabel="Selecionar papel de Jogador e entrar em um servidor"
             props_variant="primary"
           >
             Jogador

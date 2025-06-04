@@ -7,7 +7,8 @@ import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
-import { joinGameServer } from "../services/firebaseServices"; // Import the service
+import { joinGameServer } from "../services/firebaseServices";
+import { GameServer } from "../models/GameServer.types";
 
 const AccessScreen: React.FC = () => {
   const [serverNameInput, setServerNameInput] = useState("");
@@ -16,24 +17,24 @@ const AccessScreen: React.FC = () => {
   const context = useContext(AppContext);
 
   if (!context) return null;
-  const { navigateTo, createdCharacter, currentUser, setActiveServerDetails } =
-    context;
+  const { navigateTo, currentUser, setActiveServerDetails } = context; // Removed createdCharacter
 
   const handleSubmit = async () => {
     if (!serverNameInput.trim()) {
       Alert.alert("Erro", "Nome do servidor é obrigatório.");
       return;
     }
-    // Access code can be optional if server is open
 
-    if (!createdCharacter) {
-      Alert.alert(
-        "Personagem Necessário",
-        "Você precisa criar um personagem antes de entrar em um servidor."
-      );
-      navigateTo(ScreenEnum.CHARACTER_CREATE_THEME);
-      return;
-    }
+    // Character creation check removed
+    // if (!createdCharacter) {
+    //   Alert.alert(
+    //     "Personagem Necessário",
+    //     "Você precisa criar um personagem antes de entrar em um servidor."
+    //   );
+    //   navigateTo(ScreenEnum.CHARACTER_CREATE_THEME);
+    //   return;
+    // }
+
     if (!currentUser) {
       Alert.alert("Erro", "Usuário não autenticado. Por favor, faça login.");
       navigateTo(ScreenEnum.LOGIN);
@@ -42,25 +43,17 @@ const AccessScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      const joinedServerId = await joinGameServer(
+      // Pass currentUser directly, character creation is deferred
+      const joinedServer = await joinGameServer(
         serverNameInput,
         accessCodeInput,
-        createdCharacter,
         currentUser
       );
 
-      if (joinedServerId) {
-        // Optionally, set active server details for the player too if needed for their view
-        // For now, just navigate. The GM lobby will show the player.
-        // If player needs server details:
-        // const serverDetails = await getGameServerDetails(joinedServerId);
-        // setActiveServerDetails(serverDetails);
-
+      if (joinedServer) {
+        setActiveServerDetails(joinedServer as GameServer);
         Alert.alert("Sucesso!", `Você entrou no servidor: ${serverNameInput}.`);
-        navigateTo(ScreenEnum.CHARACTER_SHEET); // Or a player-specific lobby/waiting screen
-      } else {
-        // Error already handled and thrown by joinGameServer if specific
-        // Alert.alert("Erro", "Não foi possível entrar no servidor. Verifique os dados.");
+        navigateTo(ScreenEnum.PLAYER_LOBBY);
       }
     } catch (error: any) {
       console.error("Join server error:", error);
@@ -109,6 +102,13 @@ const AccessScreen: React.FC = () => {
             {loading ? <ActivityIndicator color={colors.white} /> : "ENTRAR"}
           </StyledButton>
         </View>
+        <StyledButton
+          onPress={() => navigateTo(ScreenEnum.HOME)}
+          props_variant="secondary"
+          style={{ marginTop: 10 }}
+        >
+          Voltar
+        </StyledButton>
       </View>
     </ScreenWrapper>
   );

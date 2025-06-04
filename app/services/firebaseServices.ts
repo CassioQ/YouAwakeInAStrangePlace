@@ -15,8 +15,13 @@ import {
   Unsubscribe,
 } from "firebase/firestore";
 import { auth, User } from "../../firebase"; // Assuming User is FirebaseUser
-import { GameServer, PlayerInLobby } from "../models/GameServer.types";
-import { Character } from "../models/Character.types";
+import {
+  GameServer,
+  PlayerInLobby,
+  GameServerStatus,
+} from "../models/GameServer.types";
+// Character type is no longer needed for initial lobby join by player
+// import { Character } from "../models/Character.types";
 
 const db = getFirestore();
 
@@ -36,7 +41,6 @@ export const createGameServer = async (
     return null;
   }
 
-  // Check if server name already exists (simple check, can be made more robust)
   const q = query(
     collection(db, "gameServers"),
     where("serverName", "==", serverName)
@@ -52,22 +56,24 @@ export const createGameServer = async (
     createdAt: FieldValue;
   } = {
     serverName,
-    password: password || "", // WARNING: Insecure, hash in production
+    password: password || "",
     gmId: currentUser.uid,
     createdAt: serverTimestamp(),
     players: [],
+    status: "lobby", // Initial status
   };
 
   try {
     await setDoc(newServerRef, newServerData);
-    const createdServer: GameServer = {
-      ...newServerData,
-      id: newServerRef.id,
-    };
-    return createdServer;
+    // Fetch the document to get the server-resolved timestamp and full data
+    const serverSnap = await getDoc(newServerRef);
+    if (serverSnap.exists()) {
+      return { id: serverSnap.id, ...serverSnap.data() } as GameServer;
+    }
+    return null; // Should not happen if setDoc was successful
   } catch (error) {
     console.error("Error creating game server:", error);
-    return null;
+    throw new Error("Falha ao criar o servidor no banco de dados.");
   }
 };
 
@@ -108,29 +114,27 @@ export const listenToLobbyPlayers = (
       const serverData = docSnap.data() as GameServer;
       onPlayersUpdate(serverData.players || []);
     } else {
-      onPlayersUpdate([]); // Server deleted or doesn't exist
+      onPlayersUpdate([]);
     }
   });
 };
 
 /**
  * Allows a player to join a game server.
+ * Player identity is based on their Firebase User account.
  * @param serverName The name of the server to join.
  * @param password The password for the server.
- * @param character The character the player is joining with.
  * @param currentUser The current Firebase user.
- * @returns True if successfully joined, false otherwise.
+ * @returns The joined GameServer object or null if failed.
  */
 export const joinGameServer = async (
   serverName: string,
   password?: string,
-  character?: Character | null, // Make character optional or ensure it's always passed
-  currentUser?: User | null
-): Promise<string | null> => {
-  // Returns serverId if joined, null otherwise
-  if (!character || !currentUser) {
-    console.error("Character or user not available for joining server.");
-    return null;
+  currentUser?: User | null // currentUser now directly passed
+): Promise<GameServer | null> => {
+  if (!currentUser) {
+    console.error("User not available for joining server.");
+    throw new Error("Usuário não autenticado.");
   }
 
   const q = query(
@@ -144,38 +148,89 @@ export const joinGameServer = async (
     }
 
     const serverDoc = querySnapshot.docs[0];
-    const serverData = serverDoc.data() as GameServer;
+    const serverData = { id: serverDoc.id, ...serverDoc.data() } as GameServer;
 
-    // WARNING: Direct password comparison is insecure.
     if (serverData.password && serverData.password !== password) {
       throw new Error("Senha do servidor incorreta.");
     }
 
-    // Check if player is already in the lobby to prevent duplicates
     const playerAlreadyJoined = serverData.players?.some(
-      (p) => p.userId === currentUser.uid && p.characterId === character.id
+      (p) => p.userId === currentUser.uid
     );
     if (playerAlreadyJoined) {
-      console.log("Player already in lobby with this character.");
-      return serverDoc.id; // Or handle as a re-join/confirmation
+      console.log("Player already in lobby.");
+      return serverData;
     }
 
     const playerLobbyData: PlayerInLobby = {
       userId: currentUser.uid,
-      characterId: character.id,
       playerName:
-        character.playerName || currentUser.displayName || "Jogador Anônimo",
-      characterName: character.name,
-      skills: character.skills,
-      avatarUrl: character.avatarUrl,
+        currentUser.displayName ||
+        currentUser.email?.split("@")[0] ||
+        "Jogador Anônimo",
+      // Character details are deferred
+      characterId: null,
+      characterName: null, // Or "Aguardando Personagem"
+      skills: null, // Or []
+      avatarUrl:
+        currentUser.photoURL ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || currentUser.email?.split("@")[0] || "P")}&background=random&size=100`,
     };
 
     await updateDoc(serverDoc.ref, {
       players: arrayUnion(playerLobbyData),
     });
-    return serverDoc.id;
+
+    // Fetch the updated document to return the latest player list
+    const updatedServerSnap = await getDoc(serverDoc.ref);
+    if (updatedServerSnap.exists()) {
+      return {
+        id: updatedServerSnap.id,
+        ...updatedServerSnap.data(),
+      } as GameServer;
+    }
+    return null;
   } catch (error) {
     console.error("Error joining game server:", error);
-    throw error; // Re-throw to be caught by UI
+    throw error;
   }
+};
+
+/**
+ * Updates the server status to 'in-progress'.
+ * @param serverId The ID of the server to start.
+ * @returns True if successful, false otherwise.
+ */
+export const startGame = async (serverId: string): Promise<boolean> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  try {
+    await updateDoc(serverDocRef, {
+      status: "in-progress" as GameServerStatus,
+    });
+    return true;
+  } catch (error) {
+    console.error("Error starting game:", error);
+    return false;
+  }
+};
+
+/**
+ * Sets up a real-time listener for the status of a specific game server.
+ * @param serverId The ID of the server to listen to.
+ * @param onStatusUpdate Callback function to handle status updates.
+ * @returns An unsubscribe function for the listener.
+ */
+export const listenToServerStatus = (
+  serverId: string,
+  onStatusUpdate: (status: GameServerStatus) => void
+): Unsubscribe => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  return onSnapshot(serverDocRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const serverData = docSnap.data() as GameServer;
+      onStatusUpdate(serverData.status || "lobby");
+    } else {
+      onStatusUpdate("lobby");
+    }
+  });
 };

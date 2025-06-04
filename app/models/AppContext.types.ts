@@ -24,9 +24,8 @@ export interface AppContextType {
   createdCharacter: Character | null;
   setCreatedCharacter: (character: Character | null) => void;
 
-  // GM Server Management
   activeServerDetails: GameServer | null;
-  setActiveServerDetails: (details: GameServer | null) => void; // For GM viewing their created server
+  setActiveServerDetails: (details: GameServer | null) => void;
 
   // Auth functions
   loginWithGoogle: () => Promise<FirebaseUser | null>;

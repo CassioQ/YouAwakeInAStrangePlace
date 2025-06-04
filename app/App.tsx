@@ -23,6 +23,7 @@ import CharacterSheetScreen from "./pages/CharacterSheetScreen";
 import HomeScreen from "./pages/HomeScreen";
 import CreateServerScreen from "./pages/gm/CreateServerScreen";
 import GMLobbyScreen from "./pages/gm/GMLobbyScreen";
+import PlayerLobbyScreen from "./pages/player/PlayerLobbyScreen";
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
@@ -62,12 +63,14 @@ const AppContent: React.FC = () => {
   switch (currentScreen) {
     case ScreenEnum.HOME:
       return <HomeScreen />;
-    case ScreenEnum.ACCESS_SERVER: // Player joining a server
+    case ScreenEnum.ACCESS_SERVER:
       return <AccessScreen />;
-    case ScreenEnum.CREATE_SERVER: // GM creating a server
+    case ScreenEnum.CREATE_SERVER:
       return <CreateServerScreen />;
-    case ScreenEnum.GM_LOBBY: // GM managing their server
+    case ScreenEnum.GM_LOBBY:
       return <GMLobbyScreen />;
+    case ScreenEnum.PLAYER_LOBBY: // New navigation case
+      return <PlayerLobbyScreen />;
     case ScreenEnum.CHARACTER_CREATE_THEME:
       return <CharacterDevThemeScreen />;
     case ScreenEnum.CHARACTER_CREATE_DETAILS:
