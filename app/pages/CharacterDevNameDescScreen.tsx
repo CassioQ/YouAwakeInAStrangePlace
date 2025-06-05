@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect } from "react";
-import { View, StyleSheet, Alert, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native"; // Alert removed
 import ScreenWrapper from "../components/ScreenWrapper";
 import StyledInput from "../components/StyledInput";
 import StyledTextarea from "../components/StyledTextarea";
@@ -8,6 +8,7 @@ import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
+import { showAppAlert } from '../utils/alertUtils'; // Import the utility
 
 const CharacterDevNameDescScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -40,7 +41,7 @@ const CharacterDevNameDescScreen: React.FC = () => {
 
   const handleFinalize = () => {
     if (!name.trim() || !primarySkillName.trim()) {
-      Alert.alert(
+      showAppAlert( // Replaced
         "Campos Obrigatórios",
         "Nome do Personagem e Habilidade Principal são obrigatórios."
       );
@@ -55,7 +56,7 @@ const CharacterDevNameDescScreen: React.FC = () => {
     if (character) {
       navigateTo(ScreenEnum.CHARACTER_SHEET);
     } else {
-      Alert.alert("Erro", "Erro ao finalizar personagem. Verifique os dados.");
+      showAppAlert("Erro", "Erro ao finalizar personagem. Verifique os dados."); // Replaced
     }
   };
 

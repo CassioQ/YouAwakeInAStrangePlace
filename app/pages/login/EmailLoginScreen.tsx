@@ -1,5 +1,5 @@
 import React, { useContext, useState } from "react";
-import { View, StyleSheet, Alert, TouchableOpacity, Text } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native"; // Alert removed
 import { AppContext } from "../../contexts/AppContexts";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../../firebase";
@@ -8,6 +8,7 @@ import StyledButton from "../../components/StyledButton";
 import StyledInput from "../../components/StyledInput";
 import { ScreenEnum } from "../../models/enums/CommomEnuns";
 import { colors } from "../../styles/colors";
+import { showAppAlert } from '../../utils/alertUtils'; // Import the utility
 
 const EmailLoginScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -20,13 +21,12 @@ const EmailLoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Erro", "Email e senha são obrigatórios.");
+      showAppAlert("Erro", "Email e senha são obrigatórios."); // Replaced
       return;
     }
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Navigation to HOME will be handled by onAuthStateChanged in AppContext
     } catch (error: any) {
       let errorMessage = "Ocorreu um erro ao tentar fazer login.";
       if (
@@ -39,7 +39,7 @@ const EmailLoginScreen: React.FC = () => {
         errorMessage = "O formato do email é inválido.";
       }
       console.error("Email login error:", error);
-      Alert.alert("Erro de Login", errorMessage);
+      showAppAlert("Erro de Login", errorMessage); // Replaced
     } finally {
       setLoading(false);
     }
@@ -74,7 +74,7 @@ const EmailLoginScreen: React.FC = () => {
         </StyledButton>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert("Esqueci Senha", "Funcionalidade a ser implementada.")
+            showAppAlert("Esqueci Senha", "Funcionalidade a ser implementada.") // Replaced
           }
         >
           <Text style={styles.linkText}>Esqueci minha senha</Text>
@@ -91,9 +91,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: colors.backgroundPaper, // Or backgroundDefault
-    borderRadius: 8, // if ScreenWrapper has no gutters for this screen
-    marginHorizontal: 10, // if ScreenWrapper has no gutters for this screen
+    backgroundColor: colors.backgroundPaper, 
+    borderRadius: 8, 
+    marginHorizontal: 10, 
   },
   loginButton: {
     marginTop: 10,

@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   Platform,
-} from "react-native";
+} from "react-native"; // Alert removed
 import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
+import { showAppAlert } from '../utils/alertUtils'; // Import the utility
 
 interface PageHeaderProps {
   title: string;
@@ -35,13 +35,14 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
           hour12: false,
         })
       );
-    }, 60000); // Update every minute
+    }, 60000); 
     return () => clearInterval(timer);
   }, []);
 
   const handleMenuPress = () => {
     if (context?.currentUser) {
-      if (Platform.OS === "web") {
+      // On web, direct logout is fine. On native, confirm.
+      if (Platform.OS === "web") { 
         context.logout();
       } else {
         handleLogoutApp();
@@ -54,7 +55,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
 
   const handleLogoutApp = () => {
     if (context?.currentUser) {
-      Alert.alert(
+      showAppAlert( // Replaced
         "Logout",
         "Tem certeza que deseja sair?",
         [
@@ -64,7 +65,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
         { cancelable: true }
       );
     } else {
-      Alert.alert("Atenção", "Você não está logado.");
+      showAppAlert("Atenção", "Você não está logado."); // Replaced
     }
   };
 
@@ -75,8 +76,9 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title }) => {
         accessibilityLabel={
           context?.currentUser ? "Abrir menu de logout" : "Abrir menu"
         }
+        onPress={handleMenuPress} // Added onPress here
       >
-        <Text onPress={handleMenuPress} style={styles.iconText}>
+        <Text style={styles.iconText}>
           ☰
         </Text>
       </TouchableOpacity>
@@ -97,7 +99,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "space-between", // Changed to space-between for better title centering
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: colors.headerBackground,
@@ -106,26 +108,22 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 8,
+    position: 'absolute', // To allow title to center properly
+    left: 8, 
+    zIndex: 1,
   },
   title: {
+    flex: 1, // Allow title to take available space for centering
+    textAlign: 'center', // Center title text
     fontSize: 18,
     fontWeight: "500",
     color: colors.headerText,
   },
-  statusIcons: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginRight: 8,
-  },
   iconText: {
-    fontSize: 16,
+    fontSize: 20, // Made icon slightly larger
     color: colors.textSecondary,
-    marginHorizontal: 4,
   },
+  // statusIcons and statusText are removed as per previous UI updates.
 });
 
 export default PageHeader;

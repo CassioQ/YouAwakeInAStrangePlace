@@ -6,7 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
   ScrollView,
-  Image,
+  Image
 } from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { colors } from "../../styles/colors";
@@ -17,8 +17,7 @@ import { PlayerRoll } from "../../models/GameServer.types"; // For PlayerRoll ty
 import { listenToGameSetup } from "../../services/firebaseServices";
 import { Unsubscribe } from "firebase/firestore";
 
-const defaultAvatar =
-  "https://ui-avatars.com/api/?name=P&background=random&size=40";
+const defaultAvatar = "https://ui-avatars.com/api/?name=P&background=random&size=40";
 
 const GMGameSetupMonitorScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -61,19 +60,14 @@ const GMGameSetupMonitorScreen: React.FC = () => {
       <ScreenWrapper title="MONITORAR CONFIGURAÇÃO">
         <View style={styles.centeredMessage}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>
-            Carregando dados de configuração...
-          </Text>
+          <Text style={styles.loadingText}>Carregando dados de configuração...</Text>
         </View>
       </ScreenWrapper>
     );
   }
-
-  const allPlayersRolled =
-    activeGameSetup.playerRolls &&
-    activeGameSetup.numPlayersAtSetupStart > 0 &&
-    activeGameSetup.playerRolls.length ===
-      activeGameSetup.numPlayersAtSetupStart;
+  
+  const allPlayersRolled = activeGameSetup.playerRolls && activeGameSetup.numPlayersAtSetupStart > 0 &&
+                           activeGameSetup.playerRolls.length === activeGameSetup.numPlayersAtSetupStart;
 
   return (
     <ScreenWrapper title={`MONITOR: ${activeServerDetails.serverName}`}>
@@ -81,86 +75,45 @@ const GMGameSetupMonitorScreen: React.FC = () => {
         <Text style={styles.headerText}>
           Fase Atual:{" "}
           <Text style={styles.phaseText}>
-            {activeGameSetup.currentPhase === GameSetupPhase.ROLLING &&
-              "Rolagem de Dados"}
-            {activeGameSetup.currentPhase === GameSetupPhase.DEFINING_GENRE &&
-              "Definindo Gênero"}
-            {activeGameSetup.currentPhase ===
-              GameSetupPhase.DEFINING_ADJECTIVE && "Definindo Adjetivo"}
-            {activeGameSetup.currentPhase ===
-              GameSetupPhase.DEFINING_LOCATION && "Definindo Local"}
-            {activeGameSetup.currentPhase ===
-              GameSetupPhase.CHARACTER_CREATION && "Criação de Personagens"}
-            {activeGameSetup.currentPhase === GameSetupPhase.READY_TO_PLAY &&
-              "Pronto para Jogar"}
+            {activeGameSetup.currentPhase === GameSetupPhase.ROLLING && "Rolagem de Dados"}
+            {activeGameSetup.currentPhase === GameSetupPhase.DEFINING_GENRE && "Definindo Gênero"}
+            {activeGameSetup.currentPhase === GameSetupPhase.DEFINING_ADJECTIVE && "Definindo Adjetivo"}
+            {activeGameSetup.currentPhase === GameSetupPhase.DEFINING_LOCATION && "Definindo Local"}
+            {activeGameSetup.currentPhase === GameSetupPhase.CHARACTER_CREATION && "Criação de Personagens"}
+            {activeGameSetup.currentPhase === GameSetupPhase.READY_TO_PLAY && "Pronto para Jogar"}
           </Text>
         </Text>
 
         <Text style={styles.subHeader}>
-          Jogadores que já rolaram ({activeGameSetup.playerRolls?.length || 0} /{" "}
-          {activeGameSetup.numPlayersAtSetupStart}):
+          Jogadores que já rolaram ({activeGameSetup.playerRolls?.length || 0} / {activeGameSetup.numPlayersAtSetupStart}):
         </Text>
 
-        {activeGameSetup.playerRolls &&
-        activeGameSetup.playerRolls.length > 0 ? (
+        {activeGameSetup.playerRolls && activeGameSetup.playerRolls.length > 0 ? (
           activeGameSetup.playerRolls.map((roll, index) => (
-            <View
-              key={roll.playerId + index}
-              style={[styles.playerRollItem, commonStyles.shadow]}
-            >
-              <Image
-                source={{
-                  uri: defaultAvatar.replace(
-                    "name=P",
-                    `name=${encodeURIComponent(roll.playerName[0])}`
-                  ),
-                }}
-                style={styles.avatar}
-              />
+            <View key={roll.playerId + index} style={[styles.playerRollItem, commonStyles.shadow]}>
+              <Image source={{uri: defaultAvatar.replace("name=P", `name=${encodeURIComponent(roll.playerName[0])}`)}} style={styles.avatar} />
               <Text style={styles.playerName}>{roll.playerName}: </Text>
               <Text style={styles.rollValue}>{roll.rollValue}</Text>
             </View>
           ))
         ) : (
-          <Text style={styles.infoText}>
-            Nenhum jogador rolou os dados ainda.
-          </Text>
+          <Text style={styles.infoText}>Nenhum jogador rolou os dados ainda.</Text>
         )}
-
-        {allPlayersRolled &&
-          activeGameSetup.currentPhase === GameSetupPhase.ROLLING && (
-            <Text style={styles.allRolledText}>
-              Todos os jogadores rolaram! Processando...
-            </Text>
-          )}
+        
+        {allPlayersRolled && activeGameSetup.currentPhase === GameSetupPhase.ROLLING && (
+            <Text style={styles.allRolledText}>Todos os jogadores rolaram! Processando...</Text>
+        )}
 
         {/* Placeholder for displaying world definition and other setup details */}
         <View style={styles.worldDefBox}>
           <Text style={styles.worldDefTitle}>Definição do Mundo:</Text>
-          <Text>
-            Gênero: {activeGameSetup.worldDefinition?.genre?.value || "..."}{" "}
-            (Por:{" "}
-            {activeGameSetup.worldDefinition?.genre?.definedByPlayerName ||
-              "N/A"}
-            )
-          </Text>
-          <Text>
-            Adjetivo:{" "}
-            {activeGameSetup.worldDefinition?.adjective?.value || "..."} (Por:{" "}
-            {activeGameSetup.worldDefinition?.adjective?.definedByPlayerName ||
-              "N/A"}
-            )
-          </Text>
-          <Text>
-            Local: {activeGameSetup.worldDefinition?.location?.value || "..."}{" "}
-            (Por:{" "}
-            {activeGameSetup.worldDefinition?.location?.definedByPlayerName ||
-              "N/A"}
-            )
-          </Text>
+          <Text>Gênero: {activeGameSetup.worldDefinition?.genre?.value || "..."} (Por: {activeGameSetup.worldDefinition?.genre?.definedByPlayerName || "N/A"})</Text>
+          <Text>Adjetivo: {activeGameSetup.worldDefinition?.adjective?.value || "..."} (Por: {activeGameSetup.worldDefinition?.adjective?.definedByPlayerName || "N/A"})</Text>
+          <Text>Local: {activeGameSetup.worldDefinition?.location?.value || "..."} (Por: {activeGameSetup.worldDefinition?.location?.definedByPlayerName || "N/A"})</Text>
         </View>
 
         {/* (Future) Button for GM to start session when currentPhase is 'ready_to_play' */}
+
       </ScrollView>
     </ScreenWrapper>
   );
@@ -203,8 +156,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   playerRollItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 15,
     backgroundColor: colors.backgroundPaper,
@@ -224,9 +177,9 @@ const styles = StyleSheet.create({
   },
   rollValue: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     color: colors.textPrimary,
-    marginLeft: "auto",
+    marginLeft: 'auto',
   },
   infoText: {
     fontSize: 14,
@@ -243,17 +196,17 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   worldDefBox: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: colors.stone100,
-    borderRadius: 8,
+      marginTop: 20,
+      padding: 15,
+      backgroundColor: colors.stone100,
+      borderRadius: 8,
   },
   worldDefTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 5,
-    color: colors.textPrimary,
-  },
+      fontSize: 16,
+      fontWeight: 'bold',
+      marginBottom: 5,
+      color: colors.textPrimary,
+  }
 });
 
 export default GMGameSetupMonitorScreen;

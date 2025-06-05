@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet } from "react-native"; // Alert removed
 import ScreenWrapper from "../../components/ScreenWrapper";
 import StyledInput from "../../components/StyledInput";
 import StyledButton from "../../components/StyledButton";
@@ -8,6 +8,7 @@ import { commonStyles } from "../../styles/commonStyles";
 import { AppContext } from "../../contexts/AppContexts";
 import { ScreenEnum } from "../../models/enums/CommomEnuns";
 import { createGameServer } from "../../services/firebaseServices";
+import { showAppAlert } from '../../utils/alertUtils'; // Import the utility
 
 const CreateServerScreen: React.FC = () => {
   const [serverName, setServerName] = useState("");
@@ -18,45 +19,32 @@ const CreateServerScreen: React.FC = () => {
   if (!context) return null;
   const { navigateTo, setActiveServerDetails, currentUser } = context;
 
-  // useEffect(() => {
-  //   // Client-side cleanup removed
-  //   // if (currentUser?.uid) {
-  //   //   cleanupOldUserServers(currentUser.uid)
-  //   //     .catch(err => console.warn("Client-side cleanup check failed silently:", err));
-  //   // }
-  // }, [currentUser?.uid]);
-
   const handleSubmit = async () => {
+    console.log("CreateServerScreen: handleSubmit triggered for server name:", serverName); 
     if (!serverName.trim()) {
-      Alert.alert("Erro", "Nome do servidor é obrigatório.");
+      showAppAlert("Erro", "Nome do servidor é obrigatório."); // Replaced
       return;
     }
-
+    
     if (!currentUser) {
-      Alert.alert("Erro", "Usuário não autenticado.");
+      showAppAlert("Erro", "Usuário não autenticado."); // Replaced
       navigateTo(ScreenEnum.LOGIN);
       return;
     }
 
     setLoading(true);
     try {
-      // Client-side cleanup removed
-      // await cleanupOldUserServers(currentUser.uid);
-
       const newServer = await createGameServer(serverName, password);
       if (newServer) {
-        setActiveServerDetails(newServer);
+        setActiveServerDetails(newServer); 
         navigateTo(ScreenEnum.GM_LOBBY);
-        Alert.alert("Sucesso", `Servidor "${serverName}" criado!`);
+        showAppAlert("Sucesso", `Servidor "${serverName}" criado!`); // Replaced
       } else {
-        Alert.alert("Erro", "Não foi possível criar o servidor.");
+        showAppAlert("Erro", "Não foi possível criar o servidor."); // Replaced
       }
     } catch (error: any) {
       console.error("Server creation error:", error);
-      Alert.alert(
-        "Erro ao Criar Servidor",
-        error.message || "Tente novamente."
-      );
+      showAppAlert("Erro ao Criar Servidor", error.message || "Tente novamente."); // Replaced
     } finally {
       setLoading(false);
     }
@@ -89,26 +77,21 @@ const CreateServerScreen: React.FC = () => {
           secureTextEntry
         />
         <Text style={styles.securityNote}>
-          Lembre-se: senhas de servidor são para conveniência, não segurança
-          robusta. Servidores vazios por muito tempo serão removidos
-          automaticamente.
+          Lembre-se: senhas de servidor são para conveniência, não segurança robusta.
+           Servidores vazios por muito tempo serão removidos automaticamente.
         </Text>
         <View style={styles.buttonWrapper}>
-          <StyledButton
-            onPress={handleSubmit}
-            props_variant="primary"
-            disabled={loading}
-          >
+          <StyledButton onPress={handleSubmit} props_variant="primary" disabled={loading}>
             {loading ? "Criando..." : "CRIAR SERVIDOR"}
           </StyledButton>
         </View>
-        <StyledButton
-          onPress={() => navigateTo(ScreenEnum.HOME)}
-          props_variant="secondary"
-          style={{ marginTop: 10 }}
-        >
-          Voltar
-        </StyledButton>
+         <StyledButton 
+            onPress={() => navigateTo(ScreenEnum.HOME)} 
+            props_variant="secondary" 
+            style={{marginTop: 10}}
+          >
+            Voltar
+          </StyledButton>
       </View>
     </ScreenWrapper>
   );
@@ -133,11 +116,11 @@ const styles = StyleSheet.create({
   securityNote: {
     fontSize: 12,
     color: colors.textSecondary,
-    textAlign: "center",
+    textAlign: 'center',
     marginTop: 8,
     marginBottom: 16,
-    fontStyle: "italic",
-  },
+    fontStyle: 'italic',
+  }
 });
 
 export default CreateServerScreen;

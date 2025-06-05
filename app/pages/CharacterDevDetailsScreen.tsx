@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect } from "react";
-import { View, StyleSheet, Image, Alert, ScrollView } from "react-native";
+import { View, StyleSheet, Image, ScrollView } from "react-native"; // Alert removed
 import ScreenWrapper from "../components/ScreenWrapper";
 import StyledInput from "../components/StyledInput";
 import StyledButton from "../components/StyledButton";
@@ -7,6 +7,7 @@ import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
+import { showAppAlert } from '../utils/alertUtils'; // Import the utility
 
 const defaultThemeImage =
   "https://images.unsplash.com/photo-1531297484001-80022131f5a1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y3liZXJwdW5rfGVufDB8fDB8fHww&auto=format&fit=crop&w=500&q=60";
@@ -37,7 +38,7 @@ const CharacterDevDetailsScreen: React.FC = () => {
 
   const handleNext = () => {
     if (!genre.trim() || !adjective.trim() || !location.trim()) {
-      Alert.alert(
+      showAppAlert( // Replaced
         "Campos Obrigatórios",
         "Gênero, Adjetivo e Lugar são obrigatórios."
       );
@@ -49,7 +50,7 @@ const CharacterDevDetailsScreen: React.FC = () => {
     updateCharacterInProgress(
       "themeImageURL",
       imageError ? defaultThemeImage : themeImageURL
-    ); // Save default if user's URL fails
+    ); 
     navigateTo(ScreenEnum.CHARACTER_CREATE_NAME_DESC_SKILL);
   };
 
@@ -65,7 +66,7 @@ const CharacterDevDetailsScreen: React.FC = () => {
             style={styles.cardMedia}
             resizeMode="cover"
             onError={() => setImageError(true)}
-            onLoad={() => setImageError(false)} // Reset error if a new valid URL is entered
+            onLoad={() => setImageError(false)} 
           />
           <View style={styles.cardContent}>
             <StyledInput
@@ -92,7 +93,7 @@ const CharacterDevDetailsScreen: React.FC = () => {
               value={themeImageURL}
               onChangeText={(text) => {
                 setThemeImageURL(text);
-                setImageError(false); // Reset error on new input
+                setImageError(false); 
               }}
               placeholder="https://exemplo.com/imagem.jpg"
             />
@@ -116,12 +117,12 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.backgroundPaper,
     borderRadius: 8,
-    overflow: "hidden", // To clip CardMedia
+    overflow: "hidden", 
   },
   cardMedia: {
-    height: 180, // h-48 equivalent
+    height: 180, 
     width: "100%",
-    backgroundColor: colors.stone200, // Placeholder color while image loads or on error
+    backgroundColor: colors.stone200, 
   },
   cardContent: {
     padding: 16,

@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from "react";
-import { View, Text, StyleSheet, SafeAreaView, Alert } from "react-native";
+import { View, Text, StyleSheet, SafeAreaView } from "react-native";
 import StyledButton from "../components/StyledButton";
 import MushroomIcon from "../components/icons/MushroomIcon";
 import { colors } from "../styles/colors";
@@ -11,6 +11,7 @@ import {
   leaveGameServer,
   updateServerTimestamps,
 } from "../services/firebaseServices";
+import { showAppAlert } from "../utils/alertUtils";
 
 const HomeScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -23,28 +24,34 @@ const HomeScreen: React.FC = () => {
     navigateTo,
     setActiveServerDetails,
     clearUserActiveServerId,
-    fetchUserProfile, // ensure this is called on auth change
+    fetchUserProfile,
   } = context;
 
   const handleResumeSession = async (role: UserRole, serverId: string) => {
+    console.log(
+      "[HomeScreen] handleResumeSession called for role:",
+      role,
+      "serverId:",
+      serverId
+    );
     const server = await getGameServerDetails(serverId);
     if (server) {
-      Alert.alert(
+      console.log("[HomeScreen] Server found:", server.serverName);
+      showAppAlert(
+        // Replaced Alert.alert
         "Sessão Anterior Encontrada",
         `Você estava na sala "${server.serverName}". Deseja retomá-la?`,
         [
           {
             text: "Retomar Jogo",
             onPress: async () => {
+              console.log("[HomeScreen] Alert: Retomar Jogo pressed");
               setUserRole(role);
               setActiveServerDetails(server);
               await updateServerTimestamps(serverId, role === UserRole.GM);
               if (role === UserRole.GM) {
                 navigateTo(ScreenEnum.GM_LOBBY);
               } else {
-                // Player might need to re-join if not in players list (e.g. due to cleanup)
-                // joinGameServer should handle this gracefully if called.
-                // For now, assume they are still in players list or re-join logic handles it.
                 navigateTo(ScreenEnum.PLAYER_LOBBY);
               }
             },
@@ -54,19 +61,21 @@ const HomeScreen: React.FC = () => {
               role === UserRole.GM ? "Criar Novo Jogo" : "Entrar em Novo Jogo",
             style: "destructive",
             onPress: async () => {
+              console.log(
+                "[HomeScreen] Alert: Criar/Entrar em Novo Jogo pressed"
+              );
               if (currentUser) {
                 if (role === UserRole.GM) {
                   try {
                     await deleteGameServer(serverId, currentUser.uid);
-                    Alert.alert(
+                    showAppAlert(
                       "Sucesso",
                       `Sala "${server.serverName}" foi removida.`
-                    );
+                    ); // Replaced
                   } catch (error: any) {
-                    Alert.alert("Erro ao remover sala antiga", error.message);
+                    showAppAlert("Erro ao remover sala antiga", error.message); // Replaced
                   }
                 } else {
-                  // Player
                   try {
                     await leaveGameServer(serverId, currentUser.uid);
                   } catch (error: any) {
@@ -77,7 +86,7 @@ const HomeScreen: React.FC = () => {
                   }
                 }
                 await clearUserActiveServerId(role);
-                setUserRole(role); // Set role before navigating
+                setUserRole(role);
                 navigateTo(
                   role === UserRole.GM
                     ? ScreenEnum.CREATE_SERVER
@@ -86,11 +95,19 @@ const HomeScreen: React.FC = () => {
               }
             },
           },
-          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Cancelar",
+            style: "cancel",
+            onPress: () => console.log("[HomeScreen] Alert: Cancelar pressed"),
+          },
         ]
       );
     } else {
-      // Server not found, clear the stale ID
+      console.log(
+        "[HomeScreen] Server not found for ID:",
+        serverId,
+        "Proceeding with new role selection."
+      );
       if (currentUser) {
         await clearUserActiveServerId(role);
       }
@@ -108,15 +125,36 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleRoleSelection = async (role: UserRole) => {
-    if (!currentUser || !userProfile) {
+    if (!currentUser) {
+      console.log(
+        "[HomeScreen] No currentUser, proceeding with role selection directly."
+      );
       proceedWithRoleSelection(role);
       return;
+    }
+    if (!userProfile) {
+      console.log("[HomeScreen] No userProfile, attempting to fetch.");
+      await fetchUserProfile(currentUser.uid);
+      // After fetch, userProfile might still be null if fetch fails or is async without await here.
+      // Consider re-checking userProfile or ensuring fetchUserProfile updates context synchronously for this check.
+      // For now, if it was null, the next check might pass or fail based on fetch outcome.
+      // A robust way is to ensure userProfile is loaded before this logic runs, often in AppContext.
+      console.log("[HomeScreen] userProfile after fetch attempt:", userProfile);
+      if (!userProfile) {
+        // Re-check after fetch
+        console.warn(
+          "[HomeScreen] User profile still not available after fetch. Proceeding without session check."
+        );
+        proceedWithRoleSelection(role);
+        return;
+      }
     }
 
     const serverIdToCheck =
       role === UserRole.GM
         ? userProfile.activeGmServerId
         : userProfile.activePlayerServerId;
+    console.log("[HomeScreen] Server ID to check:", serverIdToCheck);
 
     if (serverIdToCheck) {
       await handleResumeSession(role, serverIdToCheck);

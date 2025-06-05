@@ -24,8 +24,8 @@ import HomeScreen from "./pages/HomeScreen";
 import CreateServerScreen from "./pages/gm/CreateServerScreen";
 import GMLobbyScreen from "./pages/gm/GMLobbyScreen";
 import PlayerLobbyScreen from "./pages/player/PlayerLobbyScreen";
-import GMGameSetupMonitorScreen from "./pages/game_setup/GMGameSetupMonitorScreen";
 import GameSetupScreen from "./pages/game_setup/GameSetupScreen";
+import GMGameSetupMonitorScreen from "./pages/game_setup/GMGameSetupMonitorScreen";
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
@@ -39,6 +39,13 @@ const AppContent: React.FC = () => {
   }
 
   const { currentUser, isLoadingAuth, currentScreen } = context;
+
+  // Log currentScreen for debugging
+  console.log(
+    "[App.tsx] Current Screen:",
+    ScreenEnum[currentScreen],
+    `(${currentScreen})`
+  );
 
   if (isLoadingAuth) {
     return (
@@ -58,6 +65,10 @@ const AppContent: React.FC = () => {
       case ScreenEnum.EMAIL_SIGNUP:
         return <EmailSignUpScreen />;
       default:
+        console.log(
+          "[App.tsx] No user, defaulting to LOGIN screen from:",
+          ScreenEnum[currentScreen]
+        );
         return <LoginScreen />;
     }
   }
@@ -86,13 +97,27 @@ const AppContent: React.FC = () => {
     case ScreenEnum.CHARACTER_SHEET:
       return <CharacterSheetScreen />;
     default:
+      // If currentScreen was a login screen but currentUser is now set (e.g. after login), navigate to HOME.
       if (
         currentScreen === ScreenEnum.LOGIN ||
         currentScreen === ScreenEnum.EMAIL_LOGIN ||
         currentScreen === ScreenEnum.EMAIL_SIGNUP
       ) {
+        console.log(
+          "[App.tsx] User logged in, was on login screen, navigating to HOME from:",
+          ScreenEnum[currentScreen]
+        );
+        // This navigation should ideally be handled in AppContext's onAuthStateChanged
+        // but as a fallback or if context navigation didn't occur yet.
+        // However, direct navigation here can cause issues if context isn't ready.
+        // Best to rely on context's onAuthStateChanged effect.
+        // For now, just render HomeScreen as a safe default for a logged-in user.
         return <HomeScreen />;
       }
+      console.log(
+        "[App.tsx] User logged in, defaulting to HOME screen from unexpected screen:",
+        ScreenEnum[currentScreen]
+      );
       return <HomeScreen />;
   }
 };

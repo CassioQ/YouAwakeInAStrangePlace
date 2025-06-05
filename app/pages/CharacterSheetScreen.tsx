@@ -6,7 +6,6 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from "react-native";
 import ScreenWrapper from "../components/ScreenWrapper";
 import StyledButton from "../components/StyledButton";
@@ -15,9 +14,10 @@ import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { CharacterSheetTab, ScreenEnum } from "../models/enums/CommomEnuns";
 import { Skill } from "../models/Character.types";
+import { showAppAlert } from "../utils/alertUtils";
 
 const defaultAvatar =
-  "https://ui-avatars.com/api/?name=P&background=random&size=100"; // Fallback avatar
+  "https://ui-avatars.com/api/?name=P&background=random&size=100";
 const defaultThemeImage = "https://via.placeholder.com/400x200?text=Tema";
 
 const CharacterSheetScreen: React.FC = () => {
@@ -69,7 +69,8 @@ const CharacterSheetScreen: React.FC = () => {
   } = createdCharacter;
 
   const handleRollSkill = (skill: Skill) => {
-    Alert.alert(
+    showAppAlert(
+      // Replaced
       `Rolando ${skill.name}`,
       `Modificador: ${skill.modifier}\nResultado: ${Math.floor(Math.random() * 20) + 1 + skill.modifier}`
     );
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 16,
     backgroundColor: colors.backgroundDefault,
-    borderColor: colors.inputBorder, // from commonStyles.dashedBorder
+    borderColor: colors.inputBorder,
   },
   descriptionText: {
     fontSize: 14,
@@ -303,8 +304,8 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     paddingVertical: 10,
-    paddingHorizontal: 8, // Smaller padding for more tabs
-    flex: 1, // Ensure tabs distribute width
+    paddingHorizontal: 8,
+    flex: 1,
     alignItems: "center",
   },
   activeTabButton: {
@@ -355,7 +356,7 @@ const styles = StyleSheet.create({
   rollButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    minHeight: 0, // Override default
+    minHeight: 0,
   },
   rollButtonText: {
     fontSize: 14,

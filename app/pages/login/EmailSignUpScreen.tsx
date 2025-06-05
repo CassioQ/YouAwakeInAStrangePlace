@@ -1,5 +1,5 @@
 import React, { useContext, useState } from "react";
-import { View, StyleSheet, Alert, TouchableOpacity, Text } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native"; // Alert removed
 import { AppContext } from "../../contexts/AppContexts";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "../../../firebase";
@@ -8,6 +8,7 @@ import StyledButton from "../../components/StyledButton";
 import StyledInput from "../../components/StyledInput";
 import { ScreenEnum } from "../../models/enums/CommomEnuns";
 import { colors } from "../../styles/colors";
+import { showAppAlert } from '../../utils/alertUtils'; // Import the utility
 
 const EmailSignUpScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -22,15 +23,15 @@ const EmailSignUpScreen: React.FC = () => {
 
   const handleSignUp = async () => {
     if (!displayName.trim() || !email.trim() || !password.trim()) {
-      Alert.alert("Erro", "Todos os campos são obrigatórios.");
+      showAppAlert("Erro", "Todos os campos são obrigatórios."); // Replaced
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Erro", "As senhas não coincidem.");
+      showAppAlert("Erro", "As senhas não coincidem."); // Replaced
       return;
     }
     if (password.length < 6) {
-      Alert.alert("Erro", "A senha deve ter pelo menos 6 caracteres.");
+      showAppAlert("Erro", "A senha deve ter pelo menos 6 caracteres."); // Replaced
       return;
     }
 
@@ -44,7 +45,6 @@ const EmailSignUpScreen: React.FC = () => {
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName });
       }
-      // Navigation to HOME will be handled by onAuthStateChanged in AppContext
     } catch (error: any) {
       let errorMessage = "Ocorreu um erro ao tentar criar a conta.";
       if (error.code === "auth/email-already-in-use") {
@@ -55,7 +55,7 @@ const EmailSignUpScreen: React.FC = () => {
         errorMessage = "A senha é muito fraca.";
       }
       console.error("Email sign up error:", error);
-      Alert.alert("Erro de Cadastro", errorMessage);
+      showAppAlert("Erro de Cadastro", errorMessage); // Replaced
     } finally {
       setLoading(false);
     }

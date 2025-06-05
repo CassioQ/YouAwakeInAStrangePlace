@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect } from "react";
-import { View, StyleSheet, Alert } from "react-native";
+import { View, StyleSheet } from "react-native"; // Alert removed
 import ScreenWrapper from "../components/ScreenWrapper";
 import StyledInput from "../components/StyledInput";
 import StyledButton from "../components/StyledButton";
@@ -7,6 +7,7 @@ import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
+import { showAppAlert } from '../utils/alertUtils'; // Import the utility
 
 const CharacterDevThemeScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -22,7 +23,7 @@ const CharacterDevThemeScreen: React.FC = () => {
 
   const handleNext = () => {
     if (!themeInput.trim()) {
-      Alert.alert("Campo Obrigatório", "Por favor, insira a temática.");
+      showAppAlert("Campo Obrigatório", "Por favor, insira a temática."); // Replaced
       return;
     }
     updateCharacterInProgress("theme", themeInput);
@@ -47,16 +48,6 @@ const CharacterDevThemeScreen: React.FC = () => {
           props_variant="primary"
         >
           OK
-        </StyledButton>
-      </View>
-
-      <View style={styles.buttonWrapper}>
-        <StyledButton
-          onPress={() => navigateTo(ScreenEnum.HOME)}
-          props_variant="secondary"
-          style={{ marginTop: 10 }}
-        >
-          Voltar
         </StyledButton>
       </View>
     </ScreenWrapper>

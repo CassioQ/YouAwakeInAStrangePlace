@@ -4,10 +4,9 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   ScrollView,
-  Image,
-} from "react-native";
+  Image
+} from "react-native"; // Alert removed
 import ScreenWrapper from "../../components/ScreenWrapper";
 import StyledButton from "../../components/StyledButton";
 import { colors } from "../../styles/colors";
@@ -20,9 +19,9 @@ import {
   submitPlayerRoll,
 } from "../../services/firebaseServices";
 import { Unsubscribe } from "firebase/firestore";
+import { showAppAlert } from '../../utils/alertUtils'; // Import the utility
 
-const defaultAvatar =
-  "https://ui-avatars.com/api/?name=P&background=random&size=40";
+const defaultAvatar = "https://ui-avatars.com/api/?name=P&background=random&size=40";
 
 const GameSetupScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -36,7 +35,7 @@ const GameSetupScreen: React.FC = () => {
     activeServerDetails,
     activeGameSetup,
     setActiveGameSetup,
-    navigateTo, // For future navigation from this screen
+    navigateTo, 
   } = context;
 
   useEffect(() => {
@@ -76,42 +75,26 @@ const GameSetupScreen: React.FC = () => {
       await submitPlayerRoll(
         activeServerDetails.id,
         currentUser.uid,
-        currentUser.displayName ||
-          currentUser.email?.split("@")[0] ||
-          "Jogador Anônimo",
+        currentUser.displayName || currentUser.email?.split('@')[0] || "Jogador Anônimo",
         totalRoll
       );
       setPlayerHasRolled(true);
-      // Alert.alert("Você Rolou!", `Seu resultado: ${totalRoll} (${roll1} + ${roll2})`);
+      // showAppAlert("Você Rolou!", `Seu resultado: ${totalRoll} (${roll1} + ${roll2})`); // Optional feedback
     } catch (error: any) {
-      Alert.alert("Erro ao Enviar Rolagem", error.message);
-      setMyRoll(null); // Reset if submission failed
+      showAppAlert("Erro ao Enviar Rolagem", error.message); // Replaced
+      setMyRoll(null); 
     } finally {
       setRollingDice(false);
     }
   };
 
   const renderRollsList = () => {
-    if (
-      !activeGameSetup?.playerRolls ||
-      activeGameSetup.playerRolls.length === 0
-    ) {
+    if (!activeGameSetup?.playerRolls || activeGameSetup.playerRolls.length === 0) {
       return <Text style={styles.infoText}>Ninguém rolou os dados ainda.</Text>;
     }
     return activeGameSetup.playerRolls.map((roll, index) => (
-      <View
-        key={roll.playerId + index}
-        style={[styles.playerRollItem, commonStyles.shadow]}
-      >
-        <Image
-          source={{
-            uri: defaultAvatar.replace(
-              "name=P",
-              `name=${encodeURIComponent(roll.playerName[0])}`
-            ),
-          }}
-          style={styles.avatar}
-        />
+      <View key={roll.playerId + index} style={[styles.playerRollItem, commonStyles.shadow]}>
+        <Image source={{uri: defaultAvatar.replace("name=P", `name=${encodeURIComponent(roll.playerName[0])}`)}} style={styles.avatar} />
         <Text style={styles.playerName}>{roll.playerName}: </Text>
         <Text style={styles.rollValue}>{roll.rollValue}</Text>
       </View>
@@ -128,12 +111,9 @@ const GameSetupScreen: React.FC = () => {
       </ScreenWrapper>
     );
   }
-
-  const allPlayersRolled =
-    activeGameSetup.playerRolls &&
-    activeGameSetup.numPlayersAtSetupStart > 0 &&
-    activeGameSetup.playerRolls.length ===
-      activeGameSetup.numPlayersAtSetupStart;
+  
+  const allPlayersRolled = activeGameSetup.playerRolls && activeGameSetup.numPlayersAtSetupStart > 0 &&
+                           activeGameSetup.playerRolls.length === activeGameSetup.numPlayersAtSetupStart;
 
   return (
     <ScreenWrapper title="CONFIGURAÇÃO DO JOGO">
@@ -154,29 +134,24 @@ const GameSetupScreen: React.FC = () => {
         {myRoll !== null && (
           <Text style={styles.myRollText}>Sua rolagem: {myRoll}</Text>
         )}
-
+        
         {playerHasRolled && !allPlayersRolled && (
-          <Text style={styles.waitingText}>
-            Aguardando outros jogadores rolarem os dados...
-          </Text>
+            <Text style={styles.waitingText}>Aguardando outros jogadores rolarem os dados...</Text>
+        )}
+        
+        {allPlayersRolled && (
+            <Text style={styles.allRolledText}>Todos os jogadores rolaram! Processando...</Text>
         )}
 
-        {allPlayersRolled && (
-          <Text style={styles.allRolledText}>
-            Todos os jogadores rolaram! Processando...
-          </Text>
-          // TODO: Next phase logic will go here
-        )}
 
         <Text style={styles.rollsHeader}>Rolagens Atuais:</Text>
-        <View style={styles.rollsContainer}>{renderRollsList()}</View>
+        <View style={styles.rollsContainer}>
+            {renderRollsList()}
+        </View>
 
-        {/* Placeholder for next steps */}
         {activeGameSetup.currentPhase !== GameSetupPhase.ROLLING && (
-          <View style={{ marginTop: 20 }}>
-            <Text style={styles.infoText}>
-              Próxima fase: {activeGameSetup.currentPhase}
-            </Text>
+          <View style={{marginTop: 20}}>
+            <Text style={styles.infoText}>Próxima fase: {activeGameSetup.currentPhase}</Text>
           </View>
         )}
       </ScrollView>
@@ -236,17 +211,17 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginTop: 20,
     marginBottom: 10,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
   },
   rollsContainer: {
-    width: "100%",
+    width: '100%',
     backgroundColor: colors.backgroundPaper,
     borderRadius: 8,
     padding: 10,
   },
   playerRollItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: colors.stone100,
@@ -266,15 +241,15 @@ const styles = StyleSheet.create({
   },
   rollValue: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     color: colors.textPrimary,
-    marginLeft: "auto",
+    marginLeft: 'auto',
   },
   infoText: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: "center",
-  },
+    textAlign: 'center',
+  }
 });
 
 export default GameSetupScreen;
