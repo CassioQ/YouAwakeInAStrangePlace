@@ -7,6 +7,8 @@ import {
   TextInputProps,
   StyleProp,
   ViewStyle,
+  TextStyle,
+  KeyboardTypeOptions,
 } from "react-native";
 import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
@@ -15,6 +17,15 @@ interface StyledInputProps extends TextInputProps {
   label?: string;
   containerStyle?: StyleProp<ViewStyle>;
   error?: string; // For displaying error messages
+  // Explicitly define props that are destructured or reported missing in usage
+  style?: StyleProp<TextStyle>;
+  value?: string;
+  onChangeText?: (text: string) => void;
+  placeholder?: string;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoFocus?: boolean;
+  secureTextEntry?: boolean;
+  keyboardType?: KeyboardTypeOptions;
 }
 
 const StyledInput: React.FC<StyledInputProps> = ({
@@ -44,12 +55,12 @@ const StyledInput: React.FC<StyledInputProps> = ({
           styles.input,
           commonStyles.dashedBorder,
           isFocused && styles.inputFocused,
-          style,
+          style, // Apply the TextInput's specific style
         ]}
         placeholderTextColor={colors.textLight}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
-        {...props}
+        {...props} // Spread remaining TextInputProps
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>

@@ -25,6 +25,7 @@ import {
   GameServerStatus,
   GameSetupState,
   PlayerRoll,
+  WorldDefinition,
 } from "../models/GameServer.types";
 import { UserProfile } from "../models/UserProfile.types";
 import {
@@ -218,6 +219,10 @@ export const joinGameServer = async (
       throw new Error("Senha do servidor incorreta.");
     }
 
+    if (serverData.status !== "lobby") {
+      throw new Error("Este servidor não está mais aceitando novos jogadores.");
+    }
+
     const playerLobbyData: PlayerInLobby = {
       userId: currentUser.uid,
       playerName:
@@ -327,7 +332,7 @@ export const startGame = async (
 
     await updateDoc(serverDocRef, {
       status: "in-progress" as GameServerStatus,
-      gameSetup: initialGameSetup, // Initialize gameSetup
+      gameSetup: initialGameSetup,
       lastActivityAt: serverTimestamp(),
     });
     return true;
@@ -367,6 +372,64 @@ export const listenToGameSetup = (
   });
 };
 
+export const processPlayerRollsAndAssignDefinitions = async (
+  serverId: string
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  const serverSnap = await getDoc(serverDocRef);
+
+  if (!serverSnap.exists()) {
+    throw new Error("Servidor não encontrado para processar rolagens.");
+  }
+  const serverData = serverSnap.data() as GameServer;
+  const gameSetup = serverData.gameSetup;
+
+  if (!gameSetup || gameSetup.currentPhase !== GameSetupPhase.ROLLING) {
+    console.warn("Não é a hora de processar rolagens ou gameSetup não existe.");
+    return;
+  }
+
+  const sortedRolls = [...gameSetup.playerRolls].sort((a, b) => {
+    if (b.rollValue !== a.rollValue) {
+      return b.rollValue - a.rollValue;
+    }
+    // Tie-breaking: earlier roll wins
+    const aTime =
+      a.rolledAt instanceof Timestamp
+        ? a.rolledAt.toMillis()
+        : new Date(a.rolledAt).getTime();
+    const bTime =
+      b.rolledAt instanceof Timestamp
+        ? b.rolledAt.toMillis()
+        : new Date(b.rolledAt).getTime();
+    return aTime - bTime;
+  });
+
+  const definitionOrderFromRolls = sortedRolls.map((roll) => roll.playerId);
+  const interferenceTokens: { [playerId: string]: number } = {};
+
+  const numPlayers = gameSetup.numPlayersAtSetupStart;
+
+  if (numPlayers > 3) {
+    for (let i = 3; i < definitionOrderFromRolls.length; i++) {
+      interferenceTokens[definitionOrderFromRolls[i]] = 1; // Or some other logic
+    }
+  }
+
+  const newGameSetupUpdate: Partial<GameSetupState> = {
+    currentPhase: GameSetupPhase.DEFINING_GENRE,
+    definitionOrder: definitionOrderFromRolls,
+    currentPlayerIdToDefine:
+      definitionOrderFromRolls.length > 0 ? definitionOrderFromRolls[0] : null,
+    interferenceTokens: interferenceTokens,
+  };
+
+  await updateDoc(serverDocRef, {
+    gameSetup: { ...gameSetup, ...newGameSetupUpdate },
+    lastActivityAt: serverTimestamp(),
+  });
+};
+
 export const submitPlayerRoll = async (
   serverId: string,
   playerId: string,
@@ -378,14 +441,10 @@ export const submitPlayerRoll = async (
     playerId,
     playerName,
     rollValue,
-    rolledAt: new Date(),
+    rolledAt: new Date(), // Client-side Date, converted to Timestamp on write by Firestore
   };
 
   try {
-    // It's important to ensure that a player can only add their roll once.
-    // A more robust way would be a transaction or a cloud function.
-    // For client-side, we'll rely on UI disabling after roll.
-    // We also need to fetch the document to not overwrite existing rolls.
     const serverSnap = await getDoc(serverDocRef);
     if (!serverSnap.exists()) {
       throw new Error("Servidor não encontrado para submeter rolagem.");
@@ -393,21 +452,114 @@ export const submitPlayerRoll = async (
     const serverData = serverSnap.data() as GameServer;
     const gameSetup = serverData.gameSetup;
 
-    if (
-      gameSetup &&
-      gameSetup.playerRolls.find((p) => p.playerId === playerId)
-    ) {
-      console.warn(`Player ${playerId} already rolled.`);
-      return; // Already rolled
+    if (!gameSetup) {
+      throw new Error("Configuração do jogo não iniciada.");
     }
 
-    await updateDoc(serverDocRef, {
-      "gameSetup.playerRolls": arrayUnion(playerRollData),
-      "gameSetup.lastRollAt": serverTimestamp(), // Optional: track last roll time for ordering
+    const existingRollIndex = gameSetup.playerRolls.findIndex(
+      (p) => p.playerId === playerId
+    );
+    let updatedRolls = [...gameSetup.playerRolls];
+
+    if (existingRollIndex > -1) {
+      // Player is re-rolling or updating, replace their roll
+      updatedRolls[existingRollIndex] = playerRollData;
+    } else {
+      updatedRolls.push(playerRollData);
+    }
+
+    const updatePayload: any = {
+      "gameSetup.playerRolls": updatedRolls,
+      "gameSetup.lastRollAt": serverTimestamp(),
       lastActivityAt: serverTimestamp(),
-    });
+    };
+
+    await updateDoc(serverDocRef, updatePayload);
+
+    // Check if all players have rolled
+    if (updatedRolls.length === gameSetup.numPlayersAtSetupStart) {
+      await processPlayerRollsAndAssignDefinitions(serverId);
+    }
   } catch (error) {
     console.error("Error submitting player roll:", error);
     throw new Error("Falha ao submeter rolagem de dados.");
+  }
+};
+
+export const submitWorldDefinitionPart = async (
+  serverId: string,
+  playerId: string,
+  playerName: string,
+  definitionType: "genre" | "adjective" | "location",
+  value: string
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+
+  try {
+    const serverSnap = await getDoc(serverDocRef);
+    if (!serverSnap.exists()) {
+      throw new Error("Servidor não encontrado.");
+    }
+    const serverData = serverSnap.data() as GameServer;
+    const gameSetup = serverData.gameSetup;
+
+    if (
+      !gameSetup ||
+      !gameSetup.definitionOrder ||
+      gameSetup.definitionOrder.length === 0
+    ) {
+      throw new Error("Ordem de definição não está pronta ou vazia.");
+    }
+    if (gameSetup.currentPlayerIdToDefine !== playerId) {
+      throw new Error("Não é sua vez de definir esta parte.");
+    }
+
+    const worldDefinitionUpdate: Partial<WorldDefinition> = {
+      [definitionType]: {
+        value,
+        definedByPlayerId: playerId,
+        definedByPlayerName: playerName,
+      },
+    };
+
+    let nextPhase = gameSetup.currentPhase;
+    let nextPlayerIdToDefine: string | null = null;
+
+    const numPlayers = gameSetup.numPlayersAtSetupStart;
+    const currentDefinitionOrder = gameSetup.definitionOrder; // Use the existing order
+
+    const updatedWorldDefinition = {
+      ...gameSetup.worldDefinition,
+      ...worldDefinitionUpdate,
+    };
+
+    if (definitionType === "genre") {
+      nextPhase = GameSetupPhase.DEFINING_ADJECTIVE;
+      nextPlayerIdToDefine =
+        numPlayers === 1
+          ? currentDefinitionOrder[0]
+          : currentDefinitionOrder[1 % currentDefinitionOrder.length];
+    } else if (definitionType === "adjective") {
+      nextPhase = GameSetupPhase.DEFINING_LOCATION;
+      if (numPlayers === 1) nextPlayerIdToDefine = currentDefinitionOrder[0];
+      else if (numPlayers === 2)
+        nextPlayerIdToDefine = currentDefinitionOrder[0]; // Player 1 defines genre & location
+      else
+        nextPlayerIdToDefine =
+          currentDefinitionOrder[2 % currentDefinitionOrder.length];
+    } else if (definitionType === "location") {
+      nextPhase = GameSetupPhase.CHARACTER_CREATION;
+      nextPlayerIdToDefine = null;
+    }
+
+    await updateDoc(serverDocRef, {
+      "gameSetup.worldDefinition": updatedWorldDefinition,
+      "gameSetup.currentPhase": nextPhase,
+      "gameSetup.currentPlayerIdToDefine": nextPlayerIdToDefine,
+      lastActivityAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error submitting world definition part:", error);
+    throw new Error("Falha ao submeter definição.");
   }
 };

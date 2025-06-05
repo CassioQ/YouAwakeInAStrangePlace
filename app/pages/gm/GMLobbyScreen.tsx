@@ -6,27 +6,31 @@ import {
   FlatList,
   ActivityIndicator,
   Image,
-  TouchableOpacity,
-  AppState 
-} from "react-native"; // Alert removed
+  AppState,
+} from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import { AppContext } from "../../contexts/AppContexts";
-import { PlayerInLobby, GameServer, GameServerStatus } from "../../models/GameServer.types";
-import { 
-  listenToLobbyPlayers, 
-  getGameServerDetails, 
-  startGame, 
+import {
+  PlayerInLobby,
+  GameServer,
+  GameServerStatus,
+} from "../../models/GameServer.types";
+import {
+  listenToLobbyPlayers,
+  getGameServerDetails,
+  startGame,
   listenToServerStatus,
-  updateServerTimestamps, 
+  updateServerTimestamps,
 } from "../../services/firebaseServices";
 import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";
-import { showAppAlert } from '../../utils/alertUtils'; // Import the utility
+import { showAppAlert } from "../../utils/alertUtils";
 
-const defaultAvatar = "https://ui-avatars.com/api/?name=P&background=random&size=60";
+const defaultAvatar =
+  "https://ui-avatars.com/api/?name=P&background=random&size=60";
 
 const GMLobbyScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -36,8 +40,14 @@ const GMLobbyScreen: React.FC = () => {
   const [startingGame, setStartingGame] = useState(false);
 
   if (!context) return null;
-  const { activeServerDetails, navigateTo, setActiveServerDetails: setGlobalActiveServer, currentUser, clearUserActiveServerId, setActiveGameSetup } = context;
-
+  const {
+    activeServerDetails,
+    navigateTo,
+    setActiveServerDetails: setGlobalActiveServer,
+    currentUser,
+    clearUserActiveServerId,
+    setActiveGameSetup,
+  } = context;
 
   useEffect(() => {
     const updateGmSeen = async () => {
@@ -46,21 +56,20 @@ const GMLobbyScreen: React.FC = () => {
       }
     };
 
-    updateGmSeen(); 
-    const intervalId = setInterval(updateGmSeen, 60 * 1000); 
+    updateGmSeen();
+    const intervalId = setInterval(updateGmSeen, 60 * 1000);
 
-    const subscription = AppState.addEventListener("change", nextAppState => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
         updateGmSeen();
       }
     });
-    
+
     return () => {
       clearInterval(intervalId);
       subscription.remove();
     };
   }, [serverDetails?.id, currentUser?.uid, serverDetails?.gmId]);
-
 
   useEffect(() => {
     let unsubscribePlayerListener: Unsubscribe | null = null;
@@ -72,9 +81,8 @@ const GMLobbyScreen: React.FC = () => {
         const details = await getGameServerDetails(activeServerDetails.id);
         if (details) {
           setServerDetails(details);
-          setGlobalActiveServer(details); 
+          setGlobalActiveServer(details);
           setActiveGameSetup(details.gameSetup || null);
-
 
           unsubscribePlayerListener = listenToLobbyPlayers(
             activeServerDetails.id,
@@ -84,23 +92,33 @@ const GMLobbyScreen: React.FC = () => {
           );
           unsubscribeStatusListener = listenToServerStatus(
             activeServerDetails.id,
-            (status, gameSetupData) => { 
-              setServerDetails(prev => prev ? ({ ...prev, status, gameSetup: gameSetupData || prev.gameSetup }) : null);
-              setActiveGameSetup(gameSetupData || null); 
+            (status, gameSetupData) => {
+              setServerDetails((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      status,
+                      gameSetup: gameSetupData || prev.gameSetup,
+                    }
+                  : null
+              );
+              setActiveGameSetup(gameSetupData || null);
               if (status === "in-progress") {
-                 navigateTo(ScreenEnum.GAME_SETUP_GM_MONITOR); 
+                navigateTo(ScreenEnum.GAME_SETUP_GM_MONITOR);
               }
             }
           );
-
         } else {
-          showAppAlert("Erro", "Não foi possível carregar os detalhes do servidor."); // Replaced
-          if(currentUser) await clearUserActiveServerId(UserRole.GM);
-          navigateTo(ScreenEnum.HOME); 
+          showAppAlert(
+            "Erro",
+            "Não foi possível carregar os detalhes do servidor."
+          );
+          if (currentUser) await clearUserActiveServerId(UserRole.GM);
+          navigateTo(ScreenEnum.HOME);
         }
         setLoadingServer(false);
       } else {
-        showAppAlert("Erro", "Nenhum servidor ativo selecionado."); // Replaced
+        showAppAlert("Erro", "Nenhum servidor ativo selecionado.");
         navigateTo(ScreenEnum.CREATE_SERVER);
       }
     };
@@ -111,13 +129,20 @@ const GMLobbyScreen: React.FC = () => {
       if (unsubscribePlayerListener) unsubscribePlayerListener();
       if (unsubscribeStatusListener) unsubscribeStatusListener();
     };
-  }, [activeServerDetails?.id, navigateTo, setGlobalActiveServer, currentUser, clearUserActiveServerId, setActiveGameSetup]);
+  }, [
+    activeServerDetails?.id,
+    navigateTo,
+    setGlobalActiveServer,
+    currentUser,
+    clearUserActiveServerId,
+    setActiveGameSetup,
+  ]);
 
   const handleCloseLobby = async () => {
     if (currentUser) {
       await clearUserActiveServerId(UserRole.GM);
     }
-    setGlobalActiveServer(null); 
+    setGlobalActiveServer(null);
     setActiveGameSetup(null);
     navigateTo(ScreenEnum.HOME);
   };
@@ -125,14 +150,83 @@ const GMLobbyScreen: React.FC = () => {
   const handleStartGame = async () => {
     if (!serverDetails?.id || lobbyPlayers.length === 0) return;
     setStartingGame(true);
-    const success = await startGame(serverDetails.id, lobbyPlayers); 
+    const success = await startGame(serverDetails.id, lobbyPlayers);
     if (success) {
       // Navigation to GAME_SETUP_GM_MONITOR is handled by the status listener
     } else {
-      showAppAlert("Erro", "Não foi possível iniciar a partida e a configuração do jogo."); // Replaced
+      showAppAlert(
+        "Erro",
+        "Não foi possível iniciar a partida e a configuração do jogo."
+      );
     }
     setStartingGame(false);
   };
+
+  const canStartGame =
+    lobbyPlayers.length > 0 && serverDetails?.status === "lobby";
+
+  const renderListHeader = () => (
+    <>
+      {serverDetails && (
+        <View
+          style={[
+            styles.serverInfoBox,
+            commonStyles.dashedBorder,
+            commonStyles.shadow,
+          ]}
+        >
+          <Text style={styles.infoLabel}>Nome do Servidor:</Text>
+          <Text style={styles.infoValue}>{serverDetails.serverName}</Text>
+          <Text style={styles.infoLabel}>Senha:</Text>
+          <Text style={styles.infoValue}>
+            {serverDetails.password || "(Servidor Aberto)"}
+          </Text>
+          <Text style={styles.infoLabel}>Status:</Text>
+          <Text
+            style={[
+              styles.infoValue,
+              {
+                color:
+                  serverDetails.status === "in-progress"
+                    ? colors.success
+                    : colors.textPrimary,
+              },
+            ]}
+          >
+            {serverDetails.status === "lobby" && "Aguardando Jogadores"}
+            {serverDetails.status === "in-progress" && "Partida em Andamento"}
+            {serverDetails.status === "finished" && "Partida Finalizada"}
+          </Text>
+        </View>
+      )}
+
+      <StyledButton
+        onPress={handleStartGame}
+        disabled={!canStartGame || startingGame}
+        props_variant="primary"
+        style={styles.startGameButton}
+      >
+        {startingGame ? "Iniciando..." : "INICIAR PARTIDA"}
+      </StyledButton>
+
+      <Text style={styles.playersHeader}>
+        Jogadores no Lobby ({lobbyPlayers.length})
+      </Text>
+      {lobbyPlayers.length === 0 && (
+        <Text style={styles.emptyLobbyText}>Aguardando jogadores...</Text>
+      )}
+    </>
+  );
+
+  const renderListFooter = () => (
+    <StyledButton
+      onPress={handleCloseLobby}
+      props_variant="secondary"
+      style={styles.closeLobbyButton}
+    >
+      Fechar Lobby e Voltar
+    </StyledButton>
+  );
 
   if (loadingServer) {
     return (
@@ -149,91 +243,79 @@ const GMLobbyScreen: React.FC = () => {
     return (
       <ScreenWrapper title="LOBBY DO MESTRE">
         <View style={styles.centeredMessage}>
-          <Text style={styles.errorText}>Detalhes do servidor não encontrados.</Text>
-           <StyledButton onPress={() => navigateTo(ScreenEnum.HOME)} props_variant="primary">Voltar</StyledButton>
+          <Text style={styles.errorText}>
+            Detalhes do servidor não encontrados.
+          </Text>
+          <StyledButton
+            onPress={() => navigateTo(ScreenEnum.HOME)}
+            props_variant="primary"
+          >
+            Voltar
+          </StyledButton>
         </View>
       </ScreenWrapper>
     );
   }
-  
-  const canStartGame = lobbyPlayers.length > 0 && serverDetails.status === 'lobby';
 
   return (
-    <ScreenWrapper title="LOBBY DO MESTRE">
-      <View style={styles.container}>
-        <View style={[styles.serverInfoBox, commonStyles.dashedBorder, commonStyles.shadow]}>
-          <Text style={styles.infoLabel}>Nome do Servidor:</Text>
-          <Text style={styles.infoValue}>{serverDetails.serverName}</Text>
-          <Text style={styles.infoLabel}>Senha:</Text>
-          <Text style={styles.infoValue}>{serverDetails.password || "(Servidor Aberto)"}</Text>
-          <Text style={styles.infoLabel}>Status:</Text>
-          <Text style={[styles.infoValue, { color: serverDetails.status === 'in-progress' ? colors.success : colors.textPrimary }]}>
-            {serverDetails.status === 'lobby' && "Aguardando Jogadores"}
-            {serverDetails.status === 'in-progress' && "Partida em Andamento"}
-            {serverDetails.status === 'finished' && "Partida Finalizada"}
-          </Text>
-        </View>
-
-        <StyledButton
-          onPress={handleStartGame}
-          disabled={!canStartGame || startingGame}
-          props_variant="primary"
-          style={styles.startGameButton}
-        >
-          {startingGame ? "Iniciando..." : "INICIAR PARTIDA"}
-        </StyledButton>
-
-
-        <Text style={styles.playersHeader}>Jogadores no Lobby ({lobbyPlayers.length})</Text>
-        {lobbyPlayers.length === 0 ? (
-          <Text style={styles.emptyLobbyText}>Aguardando jogadores...</Text>
-        ) : (
-          <FlatList
-            data={lobbyPlayers}
-            renderItem={({ item }: { item: PlayerInLobby }) => (
-              <View style={[styles.playerCard, commonStyles.shadow]}>
-                <Image source={{ uri: item.avatarUrl || defaultAvatar }} style={styles.playerAvatar} />
-                <View style={styles.playerInfo}>
-                  <Text style={styles.playerName}>{item.playerName}</Text>
-                  <Text style={styles.characterName}>
-                    Personagem: {item.characterName || "Aguardando..."}
-                  </Text>
-                  {item.skills && item.skills.length > 0 ? (
-                    <>
-                      <Text style={styles.skillsTitle}>Habilidades:</Text>
-                      {item.skills.map((skill, index) => (
-                        <Text key={index} style={styles.skillText}>
-                          - {skill.name} ({skill.modifier >= 0 ? `+${skill.modifier}` : skill.modifier})
-                        </Text>
-                      ))}
-                    </>
-                  ) : (
-                    <Text style={styles.skillText}>Habilidades ainda não definidas.</Text>
-                  )}
-                </View>
-              </View>
-            )}
-            keyExtractor={(item) => item.userId + "_" + (item.characterId || 'nochar')} 
-            contentContainerStyle={styles.playerList}
-          />
+    <ScreenWrapper
+      title={`MONITOR: ${activeServerDetails?.serverName || "Lobby do Mestre"}`}
+      childHandlesScrolling={true}
+    >
+      <FlatList
+        style={{ flex: 1 }}
+        data={lobbyPlayers}
+        ListHeaderComponent={renderListHeader}
+        ListFooterComponent={renderListFooter}
+        renderItem={({ item }: { item: PlayerInLobby }) => (
+          <View style={[styles.playerCard, commonStyles.shadow]}>
+            <Image
+              source={{
+                uri:
+                  item.avatarUrl ||
+                  defaultAvatar.replace(
+                    "name=P",
+                    `name=${encodeURIComponent(item.playerName[0]) || "P"}`
+                  ),
+              }}
+              style={styles.playerAvatar}
+            />
+            <View style={styles.playerInfo}>
+              <Text style={styles.playerName}>{item.playerName}</Text>
+              <Text style={styles.characterName}>
+                Personagem: {item.characterName || "Aguardando..."}
+              </Text>
+              {item.skills && item.skills.length > 0 ? (
+                <>
+                  <Text style={styles.skillsTitle}>Habilidades:</Text>
+                  {item.skills.map((skill, index) => (
+                    <Text key={index} style={styles.skillText}>
+                      - {skill.name} (
+                      {skill.modifier >= 0
+                        ? `+${skill.modifier}`
+                        : skill.modifier}
+                      )
+                    </Text>
+                  ))}
+                </>
+              ) : (
+                <Text style={styles.skillText}>
+                  Habilidades ainda não definidas.
+                </Text>
+              )}
+            </View>
+          </View>
         )}
-         <StyledButton 
-            onPress={handleCloseLobby} 
-            props_variant="secondary" 
-            style={styles.closeLobbyButton}
-          >
-            Fechar Lobby e Voltar
-          </StyledButton>
-      </View>
+        keyExtractor={(item) =>
+          item.userId + "_" + (item.characterId || "nochar")
+        }
+        contentContainerStyle={styles.listContentContainer}
+      />
     </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 10,
-  },
   centeredMessage: {
     flex: 1,
     justifyContent: "center",
@@ -254,7 +336,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundPaper,
     padding: 15,
     borderRadius: 8,
-    marginBottom: 10, 
+    marginBottom: 10,
   },
   infoLabel: {
     fontSize: 14,
@@ -280,8 +362,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
     paddingBottom: 5,
   },
-  playerList: {
-    paddingBottom: 10,
+  listContentContainer: {
+    paddingBottom: 20,
   },
   playerCard: {
     backgroundColor: colors.stone100,
@@ -331,7 +413,7 @@ const styles = StyleSheet.create({
   },
   closeLobbyButton: {
     marginTop: 20,
-  }
+  },
 });
 
 export default GMLobbyScreen;

@@ -9,7 +9,7 @@ import { Platform } from "react-native"; // Alert removed, showAppAlert will han
 import { AppContextType } from "../models/AppContext.types";
 import { Character } from "../models/Character.types";
 import { ScreenEnum, UserRole } from "../models/enums/CommomEnuns";
-import { GameServer, GameSetupState } from "../models/GameServer.types"; 
+import { GameServer, GameSetupState } from "../models/GameServer.types";
 import { UserProfile } from "../models/UserProfile.types";
 import {
   auth,
@@ -21,16 +21,13 @@ import {
   signOut as firebaseSignOut,
   updateProfile as firebaseUpdateProfile,
 } from "../../firebase";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+
 import {
-  getFirestore,
-  doc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-
-import { fetchUserProfileData, updateUserActiveServerId as fbUpdateUserActiveServerId } from "../services/firebaseServices";
-import { showAppAlert } from '../utils/alertUtils'; // Import the utility
-
+  fetchUserProfileData,
+  updateUserActiveServerId as fbUpdateUserActiveServerId,
+} from "../services/firebaseServices";
+import { showAppAlert } from "../utils/alertUtils"; // Import the utility
 
 // Expo Auth Session
 import * as WebBrowser from "expo-web-browser";
@@ -75,16 +72,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [userProfile, setUserProfileState] = useState<UserProfile | null>(null);
   const [userRole, setUserRoleState] = useState<UserRole | null>(null);
   const [currentScreen, setCurrentScreen] = useState<ScreenEnum>(
-    ScreenEnum.LOGIN 
+    ScreenEnum.LOGIN
   );
   const [characterInProgress, setCharacterInProgress] = useState<
     Partial<Character>
   >(initialCharacterInProgress);
   const [createdCharacter, setCreatedCharacterState] =
     useState<Character | null>(null);
-  
-  const [activeServerDetails, setActiveServerDetailsState] = useState<GameServer | null>(null);
-  const [activeGameSetup, setActiveGameSetupState] = useState<GameSetupState | null>(null); 
+
+  const [activeServerDetails, setActiveServerDetailsState] =
+    useState<GameServer | null>(null);
+  const [activeGameSetup, setActiveGameSetupState] =
+    useState<GameSetupState | null>(null);
 
   const db = getFirestore();
 
@@ -100,7 +99,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     Facebook.useAuthRequest({
       clientId: FACEBOOK_APP_ID,
     });
-  
+
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
       const profile = await fetchUserProfileData(userId);
@@ -110,10 +109,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error("Error fetching user profile in context:", error);
-      setUserProfileState(null); 
+      setUserProfileState(null);
     }
   }, []);
 
+  const navigateTo = useCallback((screen: ScreenEnum) => {
+    setCurrentScreen(screen);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -121,9 +123,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       if (user) {
         await fetchUserProfile(user.uid);
         const userProfileRef = doc(db, "userProfiles", user.uid);
-        await setDoc(userProfileRef, { userId: user.uid, email: user.email, displayName: user.displayName, lastLoginAt: serverTimestamp() }, { merge: true });
+        await setDoc(
+          userProfileRef,
+          {
+            userId: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            lastLoginAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
 
-        if (openAccessScreens()) {
+        // If user is authenticated and currently on a login/signup screen, redirect to HOME
+        if (
+          currentScreen === ScreenEnum.LOGIN ||
+          currentScreen === ScreenEnum.EMAIL_LOGIN ||
+          currentScreen === ScreenEnum.EMAIL_SIGNUP
+        ) {
           navigateTo(ScreenEnum.HOME);
         }
       } else {
@@ -132,23 +148,20 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         resetCharacterInProgress();
         setCreatedCharacterState(null);
         setActiveServerDetailsState(null);
-        setActiveGameSetupState(null); 
-        if (!openAccessScreens()) { 
-            navigateTo(ScreenEnum.LOGIN);
+        setActiveGameSetupState(null);
+        // If user is not authenticated, ensure they are on a login screen
+        if (
+          currentScreen !== ScreenEnum.LOGIN &&
+          currentScreen !== ScreenEnum.EMAIL_LOGIN &&
+          currentScreen !== ScreenEnum.EMAIL_SIGNUP
+        ) {
+          navigateTo(ScreenEnum.LOGIN);
         }
       }
       setIsLoadingAuth(false);
     });
     return () => unsubscribe();
-  }, [fetchUserProfile, currentScreen]); 
-
-  function openAccessScreens(): boolean {
-    return (
-      currentScreen === ScreenEnum.LOGIN ||
-      currentScreen === ScreenEnum.EMAIL_LOGIN ||
-      currentScreen === ScreenEnum.EMAIL_SIGNUP
-    );
-  }
+  }, [fetchUserProfile, currentScreen, navigateTo]); // navigateTo is now defined before this useEffect
 
   useEffect(() => {
     if (googleResponse?.type === "success") {
@@ -158,14 +171,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         signInWithCredential(auth, credential)
           .catch((error) => {
             console.error("Google Sign-In to Firebase error:", error);
-            showAppAlert( // Replaced Alert.alert
+            showAppAlert(
               "Erro de Login",
               "Não foi possível fazer login com Google via Firebase."
             );
           })
           .finally(() => setIsLoadingAuth(false));
       } else {
-        showAppAlert("Erro de Login", "Token do Google não recebido."); // Replaced
+        showAppAlert("Erro de Login", "Token do Google não recebido.");
         setIsLoadingAuth(false);
       }
     } else if (
@@ -177,7 +190,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         googleResponse?.type !== "cancel" &&
         googleResponse?.type !== "dismiss"
       ) {
-        showAppAlert("Erro de Login", "Falha ao autenticar com Google."); // Replaced
+        showAppAlert("Erro de Login", "Falha ao autenticar com Google.");
       }
       setIsLoadingAuth(false);
     }
@@ -191,14 +204,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         signInWithCredential(auth, credential)
           .catch((error) => {
             console.error("Facebook Sign-In to Firebase error:", error);
-            showAppAlert( // Replaced
+            showAppAlert(
               "Erro de Login",
               "Não foi possível fazer login com Facebook via Firebase."
             );
           })
           .finally(() => setIsLoadingAuth(false));
       } else {
-        showAppAlert("Erro de Login", "Token do Facebook não recebido."); // Replaced
+        showAppAlert("Erro de Login", "Token do Facebook não recebido.");
         setIsLoadingAuth(false);
       }
     } else if (
@@ -210,7 +223,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         facebookResponse?.type !== "cancel" &&
         facebookResponse?.type !== "dismiss"
       ) {
-        showAppAlert("Erro de Login", "Falha ao autenticar com Facebook."); // Replaced
+        showAppAlert("Erro de Login", "Falha ao autenticar com Facebook.");
       }
       setIsLoadingAuth(false);
     }
@@ -220,7 +233,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptGoogleAsync();
-      return null; 
+      return null;
     } catch (error: any) {
       setIsLoadingAuth(false);
       return null;
@@ -231,7 +244,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptFacebookAsync();
-      return null; 
+      return null;
     } catch (error: any) {
       setIsLoadingAuth(false);
       return null;
@@ -243,34 +256,41 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     try {
       await firebaseSignOut(auth);
     } catch (error: any) {
-      showAppAlert("Erro de Logout", error.message || "Não foi possível fazer logout."); // Replaced
+      showAppAlert(
+        "Erro de Logout",
+        error.message || "Não foi possível fazer logout."
+      );
     } finally {
       setIsLoadingAuth(false);
     }
   };
 
-  const clearUserActiveServerId = useCallback(async (role: UserRole) => {
-    if (currentUser) {
-      try {
-        await fbUpdateUserActiveServerId(currentUser.uid, role, null);
-        setUserProfileState(prev => prev ? ({
-          ...prev,
-          ...(role === UserRole.GM && { activeGmServerId: null }),
-          ...(role === UserRole.PLAYER && { activePlayerServerId: null }),
-        }) : null);
-      } catch (error) {
-        console.error("Error clearing user active server ID:", error);
+  const clearUserActiveServerId = useCallback(
+    async (role: UserRole) => {
+      if (currentUser) {
+        try {
+          await fbUpdateUserActiveServerId(currentUser.uid, role, null);
+          setUserProfileState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ...(role === UserRole.GM && { activeGmServerId: null }),
+                  ...(role === UserRole.PLAYER && {
+                    activePlayerServerId: null,
+                  }),
+                }
+              : null
+          );
+        } catch (error) {
+          console.error("Error clearing user active server ID:", error);
+        }
       }
-    }
-  }, [currentUser]);
-
+    },
+    [currentUser]
+  );
 
   const setUserRole = useCallback((role: UserRole | null) => {
     setUserRoleState(role);
-  }, []);
-
-  const navigateTo = useCallback((screen: ScreenEnum) => {
-    setCurrentScreen(screen);
   }, []);
 
   const updateCharacterInProgress = useCallback(
@@ -286,7 +306,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const finalizeCharacter = useCallback((): Character | null => {
     if (!characterInProgress.name || !characterInProgress.primarySkillName) {
-      showAppAlert( // Replaced
+      showAppAlert(
         "Erro na Criação",
         "Nome do Personagem e Habilidade Principal são obrigatórios para finalizar."
       );
@@ -323,10 +343,26 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
                 name: characterInProgress.primarySkillName || "Generic Skill",
                 modifier: Math.floor(Math.random() * 6) - 2,
               },
-              { id: "s2", name: "Percepção", modifier: Math.floor(Math.random() * 4) - 1 },
-              { id: "s3", name: "Furtividade", modifier: Math.floor(Math.random() * 4) - 1 },
-              { id: "s4", name: "Resistência", modifier: Math.floor(Math.random() * 3) },
-              { id: "s5", name: "Carisma", modifier: Math.floor(Math.random() * 3) - 2 },
+              {
+                id: "s2",
+                name: "Percepção",
+                modifier: Math.floor(Math.random() * 4) - 1,
+              },
+              {
+                id: "s3",
+                name: "Furtividade",
+                modifier: Math.floor(Math.random() * 4) - 1,
+              },
+              {
+                id: "s4",
+                name: "Resistência",
+                modifier: Math.floor(Math.random() * 3),
+              },
+              {
+                id: "s5",
+                name: "Carisma",
+                modifier: Math.floor(Math.random() * 3) - 2,
+              },
             ],
       items: characterInProgress.items || [],
       objective:
@@ -368,8 +404,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setCreatedCharacter,
         activeServerDetails,
         setActiveServerDetails,
-        activeGameSetup, 
-        setActiveGameSetup, 
+        activeGameSetup,
+        setActiveGameSetup,
         loginWithGoogle,
         loginWithFacebook,
         logout,

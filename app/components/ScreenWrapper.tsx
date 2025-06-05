@@ -13,36 +13,50 @@ interface ScreenWrapperProps {
   title: string;
   children?: ReactNode;
   disableGutters?: boolean;
+  childHandlesScrolling?: boolean; // New prop
 }
 
 const screenWidth = Dimensions.get("window").width;
-const MAX_CONTENT_WIDTH = 500; // Equivalent to 'sm' in MUI
+const MAX_CONTENT_WIDTH = 500;
 
 const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   title,
   children,
   disableGutters = false,
+  childHandlesScrolling = false,
 }) => {
   const contentMaxWidth =
     title === "HOME"
       ? screenWidth
       : Math.min(screenWidth * 0.9, MAX_CONTENT_WIDTH);
 
+  const content = (
+    <View
+      style={[
+        styles.contentContainer,
+        { maxWidth: contentMaxWidth },
+        !disableGutters ? styles.gutters : {},
+        childHandlesScrolling ? { flex: 1 } : {},
+      ]}
+    >
+      {children}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <PageHeader title={title} />
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollViewContent,
-          disableGutters ? {} : styles.gutters,
-        ]}
-        keyboardShouldPersistTaps="handled" // Good practice for scrollviews with inputs
-      >
-        <View style={[styles.contentContainer, { maxWidth: contentMaxWidth }]}>
-          {children}
-        </View>
-      </ScrollView>
+      {childHandlesScrolling ? (
+        content
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {content}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -55,16 +69,16 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  scrollViewContent: {
+  scrollViewContentContainer: {
     flexGrow: 1,
     alignItems: "center",
+  },
+  contentContainer: {
+    width: "100%",
   },
   gutters: {
     paddingVertical: 24,
     paddingHorizontal: 16,
-  },
-  contentContainer: {
-    width: "100%",
   },
 });
 

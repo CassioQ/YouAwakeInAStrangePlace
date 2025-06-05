@@ -7,6 +7,7 @@ import {
   TextInputProps,
   StyleProp,
   ViewStyle,
+  TextStyle,
 } from "react-native";
 import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
@@ -16,6 +17,11 @@ interface StyledTextareaProps extends TextInputProps {
   containerStyle?: StyleProp<ViewStyle>;
   rows?: number; // Will influence height
   error?: string;
+  // Explicitly define props that are destructured or reported missing in usage
+  style?: StyleProp<TextStyle>;
+  value?: string;
+  onChangeText?: (text: string) => void;
+  placeholder?: string;
 }
 
 const StyledTextarea: React.FC<StyledTextareaProps> = ({
@@ -48,14 +54,14 @@ const StyledTextarea: React.FC<StyledTextareaProps> = ({
           commonStyles.dashedBorder,
           { height: calculatedHeight },
           isFocused && styles.inputFocused,
-          style,
+          style, // Apply the TextInput's specific style
         ]}
         placeholderTextColor={colors.textLight}
         multiline
         textAlignVertical="top" // Important for multiline
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
-        {...props}
+        {...props} // Spread remaining TextInputProps
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>

@@ -6,6 +6,7 @@ import {
   ViewStyle,
   TextStyle,
   TouchableOpacityProps,
+  StyleProp,
 } from "react-native";
 import { colors } from "../styles/colors";
 
@@ -15,6 +16,12 @@ interface StyledButtonProps extends TouchableOpacityProps {
   fullWidth?: boolean;
   size?: "small" | "medium" | "large";
   textStyle?: TextStyle;
+  // Explicitly define props that are destructured or reported missing in usage,
+  // even if they are in TouchableOpacityProps.
+  style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
+  onPress?: () => void | Promise<void>; // Ensure onPress is correctly typed
+  // accessibilityLabel?: string; // Already in TouchableOpacityProps
 }
 
 const StyledButton: React.FC<StyledButtonProps> = ({
@@ -60,7 +67,7 @@ const StyledButton: React.FC<StyledButtonProps> = ({
       style={buttonStyles}
       disabled={disabled}
       activeOpacity={0.7}
-      {...props}
+      {...props} // Spread remaining props, including onPress if not destructured
     >
       <Text style={textStyles}>{children}</Text>
     </TouchableOpacity>

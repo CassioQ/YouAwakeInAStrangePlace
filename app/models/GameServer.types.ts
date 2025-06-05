@@ -17,7 +17,7 @@ export interface PlayerRoll {
   playerId: string;
   playerName: string;
   rollValue: number;
-  rolledAt: Date | Timestamp;
+  rolledAt: Date | Timestamp; // Keep as Date for client-side, convert to Timestamp for Firestore
 }
 
 export interface WorldDefinitionPart {
@@ -35,11 +35,11 @@ export interface WorldDefinition {
 export interface GameSetupState {
   currentPhase: GameSetupPhase;
   numPlayersAtSetupStart: number;
-  playerRolls: PlayerRoll[];
-  definitionOrder?: string[];
-  currentPlayerIdToDefine?: string | null;
-  worldDefinition: WorldDefinition;
-  interferenceTokens?: { [playerId: string]: number };
+  playerRolls: PlayerRoll[]; // Store as array of objects for easier sorting and tie-breaking
+  definitionOrder?: string[]; // Array of player IDs in order of definition
+  currentPlayerIdToDefine?: string | null; // ID of the player currently defining
+  worldDefinition: WorldDefinition; // Stores the defined genre, adjective, location
+  interferenceTokens?: { [playerId: string]: number }; // Map of player ID to token count
   // Add other setup related fields here, e.g., character creation progress
 }
 
