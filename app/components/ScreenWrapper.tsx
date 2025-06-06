@@ -13,11 +13,8 @@ interface ScreenWrapperProps {
   title: string;
   children?: ReactNode;
   disableGutters?: boolean;
-  childHandlesScrolling?: boolean; // New prop
+  childHandlesScrolling?: boolean;
 }
-
-const screenWidth = Dimensions.get("window").width;
-const MAX_CONTENT_WIDTH = 500;
 
 const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   title,
@@ -25,16 +22,11 @@ const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   disableGutters = false,
   childHandlesScrolling = false,
 }) => {
-  const contentMaxWidth =
-    title === "HOME"
-      ? screenWidth
-      : Math.min(screenWidth * 0.9, MAX_CONTENT_WIDTH);
-
   const content = (
     <View
       style={[
         styles.contentContainer,
-        { maxWidth: contentMaxWidth },
+        { maxWidth: "100%" },
         !disableGutters ? styles.gutters : {},
         childHandlesScrolling ? { flex: 1 } : {},
       ]}
@@ -64,6 +56,7 @@ const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    width: "100%",
     backgroundColor: colors.backgroundDefault,
   },
   scrollView: {

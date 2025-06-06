@@ -40,6 +40,9 @@ export enum GameSetupPhase {
   DEFINING_ADJECTIVE = "defining_adjective",
   DEFINING_LOCATION = "defining_location",
   DEFINING_TRUTHS = "defining_truths",
-  CHARACTER_CREATION = "character_creation",
-  READY_TO_PLAY = "ready_to_play",
+  DEFINING_CHARACTER_CONCEPTS = "defining_character_concepts",
+  SKILL_DICE_ROLL = "skill_dice_roll",
+  DEFINING_PLAYER_SKILLS = "defining_player_skills",
+  DEFINING_GM_SKILLS = "defining_gm_skills",
+  AWAITING_GAME_START = "awaiting_game_start",
 }

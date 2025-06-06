@@ -16,9 +16,10 @@ import LoginScreen from "./pages/login/LoginScreen";
 import EmailLoginScreen from "./pages/login/EmailLoginScreen";
 import EmailSignUpScreen from "./pages/login/EmailSignUpScreen";
 import AccessScreen from "./pages/AccessScreen";
-import CharacterDevDetailsScreen from "./pages/CharacterDevDetailsScreen";
-import CharacterDevNameDescScreen from "./pages/CharacterDevNameDescScreen";
-import CharacterDevThemeScreen from "./pages/CharacterDevThemeScreen";
+// CharacterDev screens might be deprecated or used differently with the new setup flow
+// import CharacterDevDetailsScreen from "./pages/CharacterDevDetailsScreen";
+// import CharacterDevNameDescScreen from "./pages/CharacterDevNameDescScreen";
+// import CharacterDevThemeScreen from "./pages/CharacterDevThemeScreen";
 import CharacterSheetScreen from "./pages/CharacterSheetScreen";
 import HomeScreen from "./pages/HomeScreen";
 import CreateServerScreen from "./pages/gm/CreateServerScreen";
@@ -39,13 +40,6 @@ const AppContent: React.FC = () => {
   }
 
   const { currentUser, isLoadingAuth, currentScreen } = context;
-
-  // Log currentScreen for debugging
-  console.log(
-    "[App.tsx] Current Screen:",
-    ScreenEnum[currentScreen],
-    `(${currentScreen})`
-  );
 
   if (isLoadingAuth) {
     return (
@@ -73,6 +67,13 @@ const AppContent: React.FC = () => {
     }
   }
 
+  // Log currentScreen for debugging
+  console.log(
+    "[App.tsx] Current Screen:",
+    ScreenEnum[currentScreen],
+    `(${currentScreen})`
+  );
+
   switch (currentScreen) {
     case ScreenEnum.HOME:
       return <HomeScreen />;
@@ -85,19 +86,19 @@ const AppContent: React.FC = () => {
     case ScreenEnum.PLAYER_LOBBY:
       return <PlayerLobbyScreen />;
     case ScreenEnum.GAME_SETUP_PLAYER:
-      return <GameSetupScreen />;
+      return <GameSetupScreen />; // Handles all player-side setup phases now
     case ScreenEnum.GAME_SETUP_GM_MONITOR:
-      return <GMGameSetupMonitorScreen />;
-    case ScreenEnum.CHARACTER_CREATE_THEME:
-      return <CharacterDevThemeScreen />;
-    case ScreenEnum.CHARACTER_CREATE_DETAILS:
-      return <CharacterDevDetailsScreen />;
-    case ScreenEnum.CHARACTER_CREATE_NAME_DESC_SKILL:
-      return <CharacterDevNameDescScreen />;
-    case ScreenEnum.CHARACTER_SHEET:
+      return <GMGameSetupMonitorScreen />; // Handles all GM-side setup monitoring
+    // The CHARACTER_CREATE_* screens are likely superseded by the new GameSetupScreen flow
+    // case ScreenEnum.CHARACTER_CREATE_THEME:
+    //   return <CharacterDevThemeScreen />;
+    // case ScreenEnum.CHARACTER_CREATE_DETAILS:
+    //   return <CharacterDevDetailsScreen />;
+    // case ScreenEnum.CHARACTER_CREATE_NAME_DESC_SKILL:
+    //   return <CharacterDevNameDescScreen />;
+    case ScreenEnum.CHARACTER_SHEET: // Still used for viewing the character
       return <CharacterSheetScreen />;
     default:
-      // If currentScreen was a login screen but currentUser is now set (e.g. after login), navigate to HOME.
       if (
         currentScreen === ScreenEnum.LOGIN ||
         currentScreen === ScreenEnum.EMAIL_LOGIN ||
@@ -107,11 +108,6 @@ const AppContent: React.FC = () => {
           "[App.tsx] User logged in, was on login screen, navigating to HOME from:",
           ScreenEnum[currentScreen]
         );
-        // This navigation should ideally be handled in AppContext's onAuthStateChanged
-        // but as a fallback or if context navigation didn't occur yet.
-        // However, direct navigation here can cause issues if context isn't ready.
-        // Best to rely on context's onAuthStateChanged effect.
-        // For now, just render HomeScreen as a safe default for a logged-in user.
         return <HomeScreen />;
       }
       console.log(
