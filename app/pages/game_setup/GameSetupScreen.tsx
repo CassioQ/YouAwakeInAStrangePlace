@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  TouchableOpacity,
 } from "react-native";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import StyledButton from "../../components/StyledButton";
@@ -19,6 +20,7 @@ import {
   PlayerRoll,
   DefinedSkill,
   PlayerConceptEntry,
+  PlayerSkillModifierChoice,
 } from "../../models/GameServer.types";
 import {
   listenToGameSetup,
@@ -30,19 +32,29 @@ import {
   addPlayerSkill,
   removePlayerSkill,
   finalizePlayerSkills,
+  assignPlayerSkillModifier, // Added
+  finalizePlayerSkillModifiers, // Added
 } from "../../services/firebaseServices";
 import { Unsubscribe } from "firebase/firestore";
 import { showAppAlert } from "../../utils/alertUtils";
 
 const defaultAvatar =
   "https://ui-avatars.com/api/?name=P&background=random&size=40";
+const MODIFIER_VALUES = [
+  { label: "Incrível", value: 2 },
+  { label: "Bom", value: 1 },
+  { label: "Ruim", value: -1 },
+  { label: "Horrível", value: -2 },
+];
+
+const TOTAL_PLAYER_SKILLS = 12; // Define the constant
 
 const GameSetupScreen: React.FC = () => {
   const context = useContext(AppContext);
 
   // States for initial rolling phase
   const [rollingDice, setRollingDice] = useState(false);
-  const [playerHasRolled, setPlayerHasRolled] = useState(false); // For initial world setup rolls
+  const [playerHasRolled, setPlayerHasRolled] = useState(false);
   const [myRoll, setMyRoll] = useState<number | null>(null);
 
   // States for world definition phase
@@ -73,6 +85,13 @@ const GameSetupScreen: React.FC = () => {
   );
   const [finalizingSkills, setFinalizingSkills] = useState(false);
 
+  // States for skill modifier assignment phase
+  const [selectedModifierValue, setSelectedModifierValue] = useState<
+    number | null
+  >(null);
+  const [assigningModifier, setAssigningModifier] = useState(false);
+  const [finalizingModifiers, setFinalizingModifiers] = useState(false);
+
   if (!context) return null;
   const {
     currentUser,
@@ -90,7 +109,6 @@ const GameSetupScreen: React.FC = () => {
         (setupData) => {
           setActiveGameSetup(setupData || null);
           if (setupData?.playerRolls) {
-            // Initial rolls
             const foundRoll = setupData.playerRolls.find(
               (pr) => pr.playerId === currentUser.uid
             );
@@ -112,13 +130,23 @@ const GameSetupScreen: React.FC = () => {
             setPlayerHasRolledSkillDice(!!foundSkillRoll);
             setMySkillRoll(foundSkillRoll?.rollValue || null);
           }
+          // Reset selected modifier if phase changes or player status changes
+          if (
+            setupData?.currentPhase !==
+              GameSetupPhase.ASSIGNING_SKILL_MODIFIERS ||
+            (setupData?.playerModifierSelectionStatus &&
+              setupData.playerModifierSelectionStatus[currentUser.uid]
+                ?.finalized)
+          ) {
+            setSelectedModifierValue(null);
+          }
         }
       );
     }
     return () => {
       if (unsubscribeGameSetup) unsubscribeGameSetup();
     };
-  }, [activeServerDetails?.id, setActiveGameSetup, currentUser, conceptInput]); // Added conceptInput
+  }, [activeServerDetails?.id, setActiveGameSetup, currentUser, conceptInput]);
 
   const handleInitialDiceRoll = async () => {
     if (!currentUser || !activeServerDetails?.id || playerHasRolled) return;
@@ -318,6 +346,46 @@ const GameSetupScreen: React.FC = () => {
     }
   };
 
+  const handleAssignSkillModifier = async (skillName: string) => {
+    if (
+      !currentUser ||
+      !activeServerDetails?.id ||
+      selectedModifierValue === null
+    ) {
+      showAppAlert("Atenção", "Selecione um modificador primeiro.");
+      return;
+    }
+    setAssigningModifier(true);
+    try {
+      await assignPlayerSkillModifier(
+        activeServerDetails.id,
+        currentUser.uid,
+        skillName,
+        selectedModifierValue
+      );
+      setSelectedModifierValue(null); // Reset after assigning
+    } catch (error: any) {
+      showAppAlert("Erro ao Atribuir", error.message);
+    } finally {
+      setAssigningModifier(false);
+    }
+  };
+
+  const handleFinalizeSkillModifiers = async () => {
+    if (!currentUser || !activeServerDetails?.id) return;
+    setFinalizingModifiers(true);
+    try {
+      await finalizePlayerSkillModifiers(
+        activeServerDetails.id,
+        currentUser.uid
+      );
+    } catch (error: any) {
+      showAppAlert("Erro ao Finalizar", error.message);
+    } finally {
+      setFinalizingModifiers(false);
+    }
+  };
+
   // --- RENDER HELPER FUNCTIONS ---
   const getPlayerNameById = (playerId: string): string => {
     const player = activeServerDetails?.players.find(
@@ -395,55 +463,55 @@ const GameSetupScreen: React.FC = () => {
     if (!activeGameSetup || !currentUser) return null;
     const { currentPhase, currentPlayerIdToDefine, worldDefinition } =
       activeGameSetup;
-    const isMyTurnToDefine = currentPlayerIdToDefine === currentUser.uid;
-    const currentDefinerName = currentPlayerIdToDefine
-      ? getPlayerNameById(currentPlayerIdToDefine)
-      : "próximo jogador";
-    let phaseTitle = "",
-      inputLabel = "",
-      placeholder = "";
+    let phaseTitle = "";
+    let placeholderText = "";
 
     if (currentPhase === GameSetupPhase.DEFINING_GENRE) {
-      phaseTitle = "Definindo Gênero";
-      inputLabel = "Gênero do Mundo";
-      placeholder = "Ex: Faroeste";
+      phaseTitle = "Definir Gênero";
+      placeholderText = "Ex: Faroeste, Ficção Científica, Fantasia Medieval";
     } else if (currentPhase === GameSetupPhase.DEFINING_ADJECTIVE) {
-      phaseTitle = "Definindo Adjetivo";
-      inputLabel = "Adjetivo";
-      placeholder = "Ex: Perigoso";
+      phaseTitle = "Definir Adjetivo";
+      placeholderText = "Ex: Perigoso, Mágico, Desolado";
     } else if (currentPhase === GameSetupPhase.DEFINING_LOCATION) {
-      phaseTitle = "Definindo Local";
-      inputLabel = "Local Principal";
-      placeholder = "Ex: Escola";
-    } else return null;
+      phaseTitle = "Definir Local";
+      placeholderText = "Ex: Escola, Caverna, Nave Espacial";
+    }
+
+    const isMyTurnToDefine = currentPlayerIdToDefine === currentUser.uid;
 
     return (
-      <View style={styles.phaseContainer}>
-        <Text style={styles.headerText}>{phaseTitle}</Text>
-        <View style={styles.worldInfoBox}>
-          <Text style={styles.worldInfoText}>
-            Gênero: {worldDefinition.genre?.value || "..."}{" "}
-            {worldDefinition.genre?.definedByPlayerName &&
-              `(por ${worldDefinition.genre.definedByPlayerName})`}
+      <>
+        <Text style={styles.headerText}>Fase: {phaseTitle}</Text>
+        <View style={styles.worldDefDisplay}>
+          <Text style={styles.worldDefText}>
+            Gênero:{" "}
+            <Text style={styles.worldDefValue}>
+              {worldDefinition.genre?.value || "..."} (
+              {worldDefinition.genre?.definedByPlayerName || "A definir"})
+            </Text>
           </Text>
-          <Text style={styles.worldInfoText}>
-            Adjetivo: {worldDefinition.adjective?.value || "..."}{" "}
-            {worldDefinition.adjective?.definedByPlayerName &&
-              `(por ${worldDefinition.adjective.definedByPlayerName})`}
+          <Text style={styles.worldDefText}>
+            Adjetivo:{" "}
+            <Text style={styles.worldDefValue}>
+              {worldDefinition.adjective?.value || "..."} (
+              {worldDefinition.adjective?.definedByPlayerName || "A definir"})
+            </Text>
           </Text>
-          <Text style={styles.worldInfoText}>
-            Local: {worldDefinition.location?.value || "..."}{" "}
-            {worldDefinition.location?.definedByPlayerName &&
-              `(por ${worldDefinition.location.definedByPlayerName})`}
+          <Text style={styles.worldDefText}>
+            Local:{" "}
+            <Text style={styles.worldDefValue}>
+              {worldDefinition.location?.value || "..."} (
+              {worldDefinition.location?.definedByPlayerName || "A definir"})
+            </Text>
           </Text>
         </View>
         {isMyTurnToDefine ? (
           <>
             <StyledInput
-              label={inputLabel}
+              label={`Sua vez de ${phaseTitle.toLowerCase()}`}
               value={definitionInput}
               onChangeText={setDefinitionInput}
-              placeholder={placeholder}
+              placeholder={placeholderText}
               autoFocus
               containerStyle={{ width: "100%" }}
             />
@@ -453,53 +521,57 @@ const GameSetupScreen: React.FC = () => {
               props_variant="primary"
               style={styles.actionButton}
             >
-              {submittingDefinition ? "Enviando..." : "Submeter Definição"}
+              {submittingDefinition ? "Enviando..." : "Enviar Definição"}
             </StyledButton>
           </>
         ) : (
           <Text style={styles.waitingText}>
-            Aguardando {currentDefinerName} definir...
+            Aguardando {getPlayerNameById(currentPlayerIdToDefine || "")}{" "}
+            definir...
           </Text>
         )}
-      </View>
+      </>
     );
   };
 
   const renderTruthDefinitionPhase = () => {
     if (!activeGameSetup || !currentUser) return null;
-    const { currentPlayerIdToDefine, worldTruths } = activeGameSetup;
+    const { currentPlayerIdToDefine, worldTruths, definitionOrder } =
+      activeGameSetup;
     const isMyTurnToDefineTruth = currentPlayerIdToDefine === currentUser.uid;
-    const currentTruthDefinerName = currentPlayerIdToDefine
-      ? getPlayerNameById(currentPlayerIdToDefine)
-      : "próximo jogador";
+    const currentPlayerIndex =
+      definitionOrder?.indexOf(currentPlayerIdToDefine || "") ?? -1;
+    const truthNumber = (activeGameSetup.currentPlayerTruthIndex ?? 0) + 1;
 
     return (
-      <View style={styles.phaseContainer}>
-        <Text style={styles.headerText}>Definindo Verdades do Mundo</Text>
-        <Text style={styles.promptText}>
-          Converse com os outros jogadores e o Mestre para definir uma Verdade
-          sobre este mundo.
+      <>
+        <Text style={styles.headerText}>
+          Fase: Definindo Verdades ({truthNumber}/{definitionOrder?.length})
         </Text>
         {worldTruths && worldTruths.length > 0 && (
-          <View style={styles.truthsList}>
-            <Text style={styles.subHeaderText}>Verdades Definidas:</Text>
-            {worldTruths.map((truth, index) => (
-              <Text key={index} style={styles.truthItem}>
+          <View style={styles.truthsDisplay}>
+            <Text style={styles.subHeaderText}>Verdades Já Definidas:</Text>
+            {worldTruths.map((truth, idx) => (
+              <Text key={idx} style={styles.truthItem}>
                 {truth.order}. {truth.truth} (por {truth.definedByPlayerName})
               </Text>
             ))}
           </View>
         )}
+        <Text style={styles.infoTextSmall}>
+          Converse com os outros jogadores e com o mestre para definir algo
+          interessante sobre o mundo!
+        </Text>
         {isMyTurnToDefineTruth ? (
           <>
             <StyledTextarea
-              label="Sua Verdade sobre o Mundo"
+              label={`Sua vez de definir a ${truthNumber}ª verdade`}
               value={truthInput}
               onChangeText={setTruthInput}
-              placeholder="Ex: A principal ameaça são Ciber-Aranhas."
-              rows={3}
-              containerStyle={{ width: "100%", marginVertical: 10 }}
+              placeholder="Ex: Neste mundo, a principal ameaça são Ciber-Aranhas."
               autoFocus
+              rows={3}
+              containerStyle={{ width: "100%" }}
             />
             <StyledButton
               onPress={handleSubmitTruth}
@@ -507,42 +579,49 @@ const GameSetupScreen: React.FC = () => {
               props_variant="primary"
               style={styles.actionButton}
             >
-              {submittingTruth ? "Enviando..." : "Submeter Verdade"}
+              {submittingTruth ? "Enviando..." : "Enviar Verdade"}
             </StyledButton>
           </>
         ) : (
           <Text style={styles.waitingText}>
-            Aguardando {currentTruthDefinerName} definir uma Verdade...
+            Aguardando {getPlayerNameById(currentPlayerIdToDefine || "")}{" "}
+            definir a próxima verdade...
           </Text>
         )}
-      </View>
+      </>
     );
   };
 
   const renderCharacterConceptPhase = () => {
-    if (!activeGameSetup || !currentUser || !activeGameSetup.characterConcepts)
-      return null;
-    const myConceptEntry = activeGameSetup.characterConcepts.find(
+    if (!activeGameSetup || !currentUser) return null;
+    const myConceptEntry = activeGameSetup.characterConcepts?.find(
       (c) => c.playerId === currentUser.uid
     );
 
     return (
-      <View style={styles.phaseContainer}>
-        <Text style={styles.headerText}>Definindo Conceito do Personagem</Text>
-        <Text style={styles.promptText}>
-          Descreva que tipo de personagem você quer ser. Não se preocupe com
-          detalhes ainda, apenas o conceito geral.
-        </Text>
-        {!myConceptEntry?.submitted ? (
+      <>
+        <Text style={styles.headerText}>Fase: Conceitos de Personagem</Text>
+        {activeGameSetup.characterConcepts
+          ?.filter((c) => c.submitted)
+          .map((concept) => (
+            <View key={concept.playerId} style={styles.conceptDisplayItem}>
+              <Text style={styles.playerNameSmall}>{concept.playerName}: </Text>
+              <Text style={styles.conceptText}>
+                {concept.concept || "Aguardando..."}
+              </Text>
+            </View>
+          ))}
+
+        {myConceptEntry && !myConceptEntry.submitted && (
           <>
             <StyledTextarea
-              label="Seu Conceito de Personagem"
+              label="Descreva seu conceito de personagem"
               value={conceptInput}
               onChangeText={setConceptInput}
-              placeholder="Ex: Um detetive cibernético amargurado, um mago exilado buscando redenção, etc."
+              placeholder="Ex: Um detetive cibernético amargurado, um mago exilado buscando redenção..."
+              autoFocus
               rows={4}
               containerStyle={{ width: "100%", marginVertical: 10 }}
-              autoFocus
             />
             <StyledButton
               onPress={handleSubmitConcept}
@@ -553,44 +632,25 @@ const GameSetupScreen: React.FC = () => {
               {submittingConcept ? "Enviando..." : "Submeter Conceito"}
             </StyledButton>
           </>
-        ) : (
-          <Text style={styles.infoText}>
-            Seu conceito foi submetido! Aguardando outros jogadores...
+        )}
+        {myConceptEntry?.submitted && !activeGameSetup.allConceptsSubmitted && (
+          <Text style={styles.waitingText}>
+            Aguardando outros jogadores submeterem seus conceitos...
           </Text>
         )}
-
-        <View style={styles.conceptsList}>
-          <Text style={styles.subHeaderText}>Conceitos Submetidos:</Text>
-          {activeGameSetup.characterConcepts
-            .filter((c) => c.submitted)
-            .map((c) => (
-              <Text key={c.playerId} style={styles.listItemText}>
-                {c.playerName}: {c.concept}
-              </Text>
-            ))}
-          {activeGameSetup.characterConcepts.filter((c) => !c.submitted)
-            .length > 0 && (
-            <Text style={styles.infoTextItalic}>
-              Aguardando{" "}
-              {
-                activeGameSetup.characterConcepts.filter((c) => !c.submitted)
-                  .length
-              }{" "}
-              jogador(es)...
-            </Text>
-          )}
-        </View>
-      </View>
+        {activeGameSetup.allConceptsSubmitted && (
+          <Text style={styles.allRolledText}>
+            Todos os conceitos foram submetidos!
+          </Text>
+        )}
+      </>
     );
   };
 
   const renderSkillDiceRollPhase = () => (
-    <View style={styles.phaseContainer}>
+    <>
       <Text style={styles.headerText}>
         Fase: Rolagem de Dados (Ordem de Habilidades)
-      </Text>
-      <Text style={styles.promptText}>
-        Role 2d6 para determinar a ordem de escolha das habilidades.
       </Text>
       {!playerHasRolledSkillDice && (
         <StyledButton
@@ -601,7 +661,7 @@ const GameSetupScreen: React.FC = () => {
         >
           {rollingSkillDice
             ? "Rolando..."
-            : "Rolar Dados para Habilidades (2d6)"}
+            : "Rolar Dados (2d6) para Habilidades"}
         </StyledButton>
       )}
       {mySkillRoll !== null && (
@@ -621,9 +681,9 @@ const GameSetupScreen: React.FC = () => {
       )}
       {renderRollsList(
         activeGameSetup?.skillRolls || [],
-        "Rolagens (Habilidades):"
+        "Rolagens Atuais (Habilidades):"
       )}
-    </View>
+    </>
   );
 
   const renderPlayerSkillDefinitionPhase = () => {
@@ -635,40 +695,46 @@ const GameSetupScreen: React.FC = () => {
       !activeGameSetup.skillRolls
     )
       return null;
+
     const myAllocation =
       activeGameSetup.skillsPerPlayerAllocation[currentUser.uid];
-    const isMyTurnToDefineSkills =
+    const isMyTurn =
       activeGameSetup.currentPlayerIdToDefine === currentUser.uid;
-    const currentSkillDefinerName = activeGameSetup.currentPlayerIdToDefine
-      ? getPlayerNameById(activeGameSetup.currentPlayerIdToDefine)
-      : "Ninguém";
-
-    if (!myAllocation)
-      return (
-        <Text style={styles.errorText}>
-          Erro: Alocação de habilidades não encontrada.
-        </Text>
-      );
-    const skillsIDefined = activeGameSetup.definedSkills.filter(
+    const playerWhoseTurn = activeGameSetup.skillRolls.find(
+      (p) => p.playerId === activeGameSetup.currentPlayerIdToDefine
+    );
+    const myDefinedSkills = activeGameSetup.definedSkills.filter(
       (s) => s.definedByPlayerId === currentUser.uid && s.type === "player"
     );
 
     return (
-      <View style={styles.phaseContainer}>
-        <Text style={styles.headerText}>Definindo Habilidades</Text>
-        {isMyTurnToDefineSkills && !myAllocation.finalized ? (
+      <>
+        <Text style={styles.headerText}>
+          Fase: Definição de Habilidades (Jogadores -{" "}
+          {
+            activeGameSetup.definedSkills.filter((s) => s.type === "player")
+              .length
+          }
+          /{TOTAL_PLAYER_SKILLS})
+        </Text>
+        <Text style={styles.infoTextSmall}>
+          Sua vez de definir {myAllocation?.totalToDefine || 0} habilidade(s).
+          Definidas: {myAllocation?.definedCount || 0}.
+        </Text>
+        <Text style={styles.infoTextSmall}>
+          Habilidades não podem ser repetidas.
+        </Text>
+
+        {isMyTurn && myAllocation && !myAllocation.finalized && (
           <>
-            <Text style={styles.promptText}>
-              Sua vez! Defina {myAllocation.totalToDefine} habilidade(s). Você
-              já definiu {skillsIDefined.length}.
-            </Text>
-            {skillsIDefined.length < myAllocation.totalToDefine ? (
+            {myAllocation.definedCount < myAllocation.totalToDefine && (
               <>
                 <StyledInput
                   label="Nome da Habilidade"
                   value={skillNameInput}
                   onChangeText={setSkillNameInput}
-                  placeholder="Ex: Investigar, Lutar, Persuadir"
+                  placeholder="Ex: Lutar, Investigar, Enganar"
+                  autoFocus
                   containerStyle={{ width: "100%", marginVertical: 10 }}
                 />
                 <StyledButton
@@ -677,39 +743,40 @@ const GameSetupScreen: React.FC = () => {
                   props_variant="primary"
                   style={styles.actionButtonSmall}
                 >
-                  Adicionar Habilidade
+                  {addingSkill ? "Adicionando..." : "Adicionar Habilidade"}
                 </StyledButton>
               </>
-            ) : (
-              <Text style={styles.infoTextGreen}>
-                Você definiu todas as suas habilidades!
-              </Text>
             )}
-            <View style={styles.mySkillsList}>
-              <Text style={styles.subHeaderText}>
-                Suas Habilidades Adicionadas:
-              </Text>
-              {skillsIDefined.map((skill) => (
-                <View key={skill.skillName} style={styles.skillChip}>
-                  <Text style={styles.skillChipText}>{skill.skillName}</Text>
-                  <StyledButton
-                    onPress={() => handleRemoveSkill(skill.skillName)}
-                    disabled={removingSkillName === skill.skillName}
-                    props_variant="secondary"
-                    style={styles.removeSkillButton}
-                    textStyle={styles.removeSkillButtonText}
-                  >
-                    X
-                  </StyledButton>
-                </View>
-              ))}
-            </View>
-            {skillsIDefined.length >= myAllocation.totalToDefine && (
+
+            {myDefinedSkills.length > 0 && (
+              <View style={styles.mySkillsContainer}>
+                <Text style={styles.subHeaderTextSmall}>
+                  Minhas Habilidades Adicionadas:
+                </Text>
+                {myDefinedSkills.map((skill) => (
+                  <View key={skill.skillName} style={styles.mySkillItem}>
+                    <Text style={styles.mySkillText}>{skill.skillName}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveSkill(skill.skillName)}
+                      disabled={removingSkillName === skill.skillName}
+                      style={styles.removeSkillButton}
+                    >
+                      <Text style={styles.removeSkillText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {myAllocation.definedCount >= myAllocation.totalToDefine && (
               <StyledButton
                 onPress={handleFinalizePlayerSkills}
                 disabled={finalizingSkills}
                 props_variant="primary"
-                style={styles.actionButton}
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: colors.success },
+                ]}
               >
                 {finalizingSkills
                   ? "Finalizando..."
@@ -717,56 +784,196 @@ const GameSetupScreen: React.FC = () => {
               </StyledButton>
             )}
           </>
-        ) : (
+        )}
+        {!isMyTurn && playerWhoseTurn && (
           <Text style={styles.waitingText}>
-            Aguardando{" "}
-            {myAllocation.finalized
-              ? "outros jogadores"
-              : currentSkillDefinerName}{" "}
-            definir habilidades...
+            Aguardando {playerWhoseTurn.playerName} definir habilidades...
           </Text>
         )}
-        <View style={styles.definedSkillsList}>
-          <Text style={styles.subHeaderText}>
-            Todas Habilidades Definidas (
-            {
-              activeGameSetup.definedSkills.filter((s) => s.type === "player")
-                .length
-            }
-            /12 por jogadores):
+        {myAllocation?.finalized && (
+          <Text style={styles.infoTextGreen}>
+            Você já finalizou suas habilidades.
           </Text>
-          {activeGameSetup.definedSkills
-            .filter((s) => s.type === "player")
-            .map((skill, idx) => (
-              <Text key={idx} style={styles.listItemText}>
-                {skill.skillName} (por {skill.definedByPlayerName})
-              </Text>
-            ))}
+        )}
+
+        <View style={styles.allSkillsContainer}>
+          <Text style={styles.subHeaderText}>Todas Habilidades Definidas:</Text>
+          {activeGameSetup.definedSkills.length === 0 && (
+            <Text style={styles.infoText}>
+              Nenhuma habilidade definida ainda.
+            </Text>
+          )}
+          {activeGameSetup.definedSkills.map((skill) => (
+            <Text key={skill.skillName} style={styles.skillListItem}>
+              - {skill.skillName} (por {skill.definedByPlayerName})
+            </Text>
+          ))}
         </View>
-      </View>
+      </>
     );
   };
 
-  // --- MAIN RENDER LOGIC ---
-  if (!activeGameSetup) {
+  const renderAssignSkillModifiersPhase = () => {
+    if (
+      !activeGameSetup ||
+      !currentUser ||
+      !activeGameSetup.definedSkills ||
+      !activeGameSetup.playerModifierSelectionStatus
+    )
+      return null;
+
+    const myPlayerStatus =
+      activeGameSetup.playerModifierSelectionStatus[currentUser.uid];
+    const myPlayerSkillModifiers =
+      activeGameSetup.playerSkillModifiers?.[currentUser.uid] || [];
+    const allSkills = activeGameSetup.definedSkills;
+
+    if (myPlayerStatus?.finalized) {
+      return (
+        <>
+          <Text style={styles.headerText}>
+            Fase: Atribuição de Modificadores de Habilidade
+          </Text>
+          <Text style={styles.infoTextGreen}>
+            Você já finalizou a atribuição de seus modificadores.
+          </Text>
+          <Text style={styles.waitingText}>
+            Aguardando outros jogadores ou o Mestre iniciar...
+          </Text>
+          <View style={styles.myModifiersSummary}>
+            <Text style={styles.subHeaderTextSmall}>
+              Seus Modificadores Atribuídos:
+            </Text>
+            {myPlayerSkillModifiers.map((mod) => (
+              <Text key={mod.skillName} style={styles.skillListItem}>
+                {mod.skillName}:{" "}
+                <Text style={{ fontWeight: "bold" }}>
+                  {mod.modifierValue > 0 ? "+" : ""}
+                  {mod.modifierValue}
+                </Text>
+              </Text>
+            ))}
+          </View>
+        </>
+      );
+    }
+
     return (
-      <ScreenWrapper title="CONFIGURAÇÃO DO JOGO">
-        <View style={styles.centeredMessage}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Carregando...</Text>
+      <>
+        <Text style={styles.headerText}>
+          Fase: Atribuição de Modificadores de Habilidade
+        </Text>
+        <Text style={styles.infoText}>
+          Escolha 4 habilidades da lista abaixo e atribua um dos seguintes
+          modificadores a cada uma (um modificador por habilidade, uma
+          habilidade por modificador):
+        </Text>
+        <View style={styles.modifierButtonsContainer}>
+          {MODIFIER_VALUES.map((mod) => (
+            <TouchableOpacity
+              key={mod.value}
+              style={[
+                styles.modifierButton,
+                selectedModifierValue === mod.value &&
+                  styles.modifierButtonActive,
+                myPlayerStatus?.assignedModifiers?.includes(mod.value) &&
+                  styles.modifierButtonUsed,
+              ]}
+              onPress={() => {
+                if (myPlayerStatus?.assignedModifiers?.includes(mod.value)) {
+                  showAppAlert(
+                    "Atenção",
+                    `O modificador ${mod.label} (${mod.value > 0 ? "+" : ""}${mod.value}) já foi usado para outra habilidade. Desmarque a habilidade anterior para usá-lo aqui.`
+                  );
+                  return;
+                }
+                setSelectedModifierValue(mod.value);
+              }}
+              disabled={
+                myPlayerStatus?.assignedModifiers?.includes(mod.value) &&
+                selectedModifierValue !== mod.value
+              }
+            >
+              <Text
+                style={[
+                  styles.modifierButtonText,
+                  selectedModifierValue === mod.value &&
+                    styles.modifierButtonTextActive,
+                ]}
+              >
+                {mod.label} ({mod.value > 0 ? "+" : ""}
+                {mod.value})
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+
+        <Text style={styles.subHeaderText}>Lista de Todas as Habilidades:</Text>
+        <ScrollView style={styles.skillsListScrollView}>
+          {allSkills.map((skill) => {
+            const assignedModifier = myPlayerSkillModifiers.find(
+              (m) => m.skillName === skill.skillName
+            );
+            return (
+              <TouchableOpacity
+                key={skill.skillName}
+                style={[
+                  styles.skillItemForModifier,
+                  selectedModifierValue !== null && styles.skillItemHoverable, // Visual cue
+                  assignedModifier && styles.skillItemAssigned,
+                ]}
+                onPress={() => handleAssignSkillModifier(skill.skillName)}
+                disabled={assigningModifier}
+              >
+                <Text style={styles.skillNameText}>{skill.skillName}</Text>
+                {assignedModifier && (
+                  <Text style={styles.assignedModifierText}>
+                    ({assignedModifier.modifierValue > 0 ? "+" : ""}
+                    {assignedModifier.modifierValue})
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <StyledButton
+          onPress={handleFinalizeSkillModifiers}
+          disabled={
+            finalizingModifiers ||
+            myPlayerStatus?.assignedModifiers?.length !== 4
+          }
+          props_variant="primary"
+          style={[
+            styles.actionButton,
+            {
+              marginTop: 15,
+              backgroundColor:
+                myPlayerStatus?.assignedModifiers?.length === 4
+                  ? colors.success
+                  : colors.primary,
+            },
+          ]}
+        >
+          {finalizingModifiers ? "Finalizando..." : "Finalizar Modificadores"}
+        </StyledButton>
+      </>
+    );
+  };
+
+  // --- MAIN RENDER ---
+  if (!activeGameSetup || !currentUser) {
+    return (
+      <ScreenWrapper title="CONFIGURAR JOGO">
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Carregando dados do jogo...</Text>
       </ScreenWrapper>
     );
   }
 
   const allPlayersHaveRolledInitial =
-    activeGameSetup.playerRolls &&
-    activeGameSetup.numPlayersAtSetupStart > 0 &&
     activeGameSetup.playerRolls.length ===
-      activeGameSetup.numPlayersAtSetupStart;
-
-  const myTokens =
-    currentUser && activeGameSetup.interferenceTokens?.[currentUser.uid];
+    activeGameSetup.numPlayersAtSetupStart;
 
   let content = null;
   switch (activeGameSetup.currentPhase) {
@@ -792,31 +999,91 @@ const GameSetupScreen: React.FC = () => {
       break;
     case GameSetupPhase.DEFINING_GM_SKILLS:
       content = (
-        <Text style={styles.waitingText}>
-          Aguardando o Mestre definir as últimas habilidades...
-        </Text>
+        <>
+          <Text style={styles.headerText}>
+            Fase: Mestre Definindo Habilidades Finais
+          </Text>
+          <Text style={styles.waitingText}>
+            Aguardando o Mestre adicionar as últimas 4 habilidades...
+          </Text>
+          <View style={styles.allSkillsContainer}>
+            <Text style={styles.subHeaderText}>
+              Todas Habilidades Definidas (
+              {activeGameSetup.definedSkills?.length || 0}/16):
+            </Text>
+            {activeGameSetup.definedSkills?.map((skill) => (
+              <Text key={skill.skillName} style={styles.skillListItem}>
+                - {skill.skillName} (por {skill.definedByPlayerName})
+              </Text>
+            ))}
+          </View>
+        </>
       );
+      break;
+    case GameSetupPhase.ASSIGNING_SKILL_MODIFIERS:
+      content = renderAssignSkillModifiersPhase();
       break;
     case GameSetupPhase.AWAITING_GAME_START:
       content = (
-        <Text style={styles.infoTextGreen}>
-          Tudo pronto! Aguardando o Mestre iniciar a sessão de jogo.
-        </Text>
+        <>
+          <Text style={styles.headerText}>Configuração Concluída!</Text>
+          <Text style={styles.waitingText}>
+            Aguardando o Mestre iniciar a sessão de jogo...
+          </Text>
+          <View style={styles.allSkillsContainer}>
+            <Text style={styles.subHeaderText}>
+              Todas Habilidades Definidas (
+              {activeGameSetup.definedSkills?.length || 0}/16):
+            </Text>
+            {activeGameSetup.definedSkills?.map((skill) => (
+              <Text key={skill.skillName} style={styles.skillListItem}>
+                - {skill.skillName} (por {skill.definedByPlayerName})
+              </Text>
+            ))}
+          </View>
+          {activeGameSetup.playerSkillModifiers &&
+            activeGameSetup.playerSkillModifiers[currentUser.uid] && (
+              <View style={styles.myModifiersSummary}>
+                <Text style={styles.subHeaderTextSmall}>
+                  Seus Modificadores Atribuídos:
+                </Text>
+                {activeGameSetup.playerSkillModifiers[currentUser.uid].map(
+                  (mod) => (
+                    <Text key={mod.skillName} style={styles.skillListItem}>
+                      {mod.skillName}:{" "}
+                      <Text style={{ fontWeight: "bold" }}>
+                        {mod.modifierValue > 0 ? "+" : ""}
+                        {mod.modifierValue}
+                      </Text>
+                    </Text>
+                  )
+                )}
+              </View>
+            )}
+        </>
       );
       break;
     default:
-      content = <Text style={styles.infoText}>Fase desconhecida.</Text>;
+      content = <Text style={styles.errorText}>Fase desconhecida.</Text>;
   }
 
   return (
-    <ScreenWrapper title="CONFIGURAÇÃO DO JOGO" childHandlesScrolling={true}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
+    <ScreenWrapper title="CONFIGURAR JOGO" childHandlesScrolling={true}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        {activeGameSetup.interferenceTokens &&
+          activeGameSetup.interferenceTokens[currentUser.uid] > 0 && (
+            <View style={styles.tokenInfoBox}>
+              <Text style={styles.tokenText}>
+                Você tem {activeGameSetup.interferenceTokens[currentUser.uid]}{" "}
+                token(s) de interferência!
+              </Text>
+            </View>
+          )}
         {content}
-        {myTokens !== undefined && myTokens && myTokens > 0 && (
-          <Text style={styles.tokenText}>
-            Você tem {myTokens} token(s) de interferência!
-          </Text>
-        )}
       </ScrollView>
     </ScreenWrapper>
   );
@@ -824,75 +1091,69 @@ const GameSetupScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 10,
-    paddingBottom: 30,
+    padding: 16,
     alignItems: "center",
   },
-  phaseContainer: {
-    // Used for each phase's content block
-    width: "100%",
-    alignItems: "center",
-    backgroundColor: colors.backgroundPaper,
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-    ...commonStyles.shadow,
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: colors.textSecondary,
   },
-  centeredMessage: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { marginTop: 10, fontSize: 16, color: colors.textSecondary },
   errorText: {
     fontSize: 16,
     color: colors.error,
     textAlign: "center",
-    marginBottom: 10,
   },
   headerText: {
     fontSize: 20,
     fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 15,
+    color: colors.primary,
+    marginBottom: 16,
     textAlign: "center",
   },
   subHeaderText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "500",
     color: colors.textPrimary,
+    marginTop: 12,
+    marginBottom: 6,
+    textAlign: "left",
+    width: "100%",
+  },
+  subHeaderTextSmall: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.textSecondary,
     marginTop: 10,
     marginBottom: 5,
   },
-  promptText: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: "center",
-    fontStyle: "italic",
-    marginBottom: 15,
-    paddingHorizontal: 5,
+  actionButton: {
+    marginTop: 10,
+    marginBottom: 20,
+    width: "100%",
   },
-  actionButton: { marginBottom: 15, minWidth: 220 },
   actionButtonSmall: {
-    marginBottom: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minHeight: 38,
+    marginTop: 8,
+    marginBottom: 12,
+    width: "100%",
   },
   myRollText: {
-    fontSize: 18,
-    color: colors.primary,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "500",
+    color: colors.success,
+    marginVertical: 10,
   },
   waitingText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
-    fontStyle: "italic",
     textAlign: "center",
     marginVertical: 15,
+    fontStyle: "italic",
   },
   allRolledText: {
-    fontSize: 16,
-    color: colors.success,
+    fontSize: 15,
     fontWeight: "bold",
+    color: colors.success,
     textAlign: "center",
     marginVertical: 10,
   },
@@ -900,143 +1161,230 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: "center",
-    marginVertical: 10,
+    marginVertical: 5,
+  },
+  infoTextSmall: {
+    fontSize: 13,
+    color: colors.textLight,
+    textAlign: "center",
+    marginVertical: 3,
+    marginBottom: 8,
   },
   infoTextGreen: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.success,
     fontWeight: "500",
     textAlign: "center",
     marginVertical: 10,
   },
-  infoTextItalic: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-    textAlign: "center",
-    marginTop: 5,
-  },
-
   rollsHeader: {
-    fontSize: 17,
+    // Added missing style
+    fontSize: 16,
     fontWeight: "500",
     color: colors.textPrimary,
     marginTop: 15,
     marginBottom: 8,
-    alignSelf: "flex-start",
+    textAlign: "center",
     width: "100%",
   },
   rollsContainer: {
     width: "100%",
-    backgroundColor: colors.stone100,
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 10,
+    marginTop: 5,
   },
   playerRollItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: colors.white,
-    borderRadius: 4,
-    marginBottom: 5,
+    backgroundColor: colors.stone100,
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 8,
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     marginRight: 8,
-    backgroundColor: colors.stone200,
   },
-  playerName: { fontSize: 15, color: colors.textSecondary },
+  playerName: {
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  playerNameSmall: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
   rollValue: {
     fontSize: 15,
     fontWeight: "bold",
-    color: colors.textPrimary,
-    marginLeft: "auto",
+    color: colors.primary,
   },
-
-  worldInfoBox: {
-    width: "100%",
-    padding: 10,
+  worldDefDisplay: {
     backgroundColor: colors.stone100,
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 16,
+    width: "100%",
+  },
+  worldDefText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  worldDefValue: {
+    fontWeight: "bold",
+    color: colors.textPrimary,
+  },
+  tokenInfoBox: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 6,
     marginBottom: 15,
+    alignSelf: "stretch",
+    alignItems: "center",
   },
-  worldInfoText: { fontSize: 15, color: colors.textSecondary, marginBottom: 4 },
-
-  truthsList: { width: "100%", marginBottom: 15, paddingHorizontal: 5 },
+  tokenText: {
+    color: colors.primaryContrast,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  truthsDisplay: {
+    width: "100%",
+    backgroundColor: colors.stone100,
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
   truthItem: {
     fontSize: 14,
-    color: colors.textPrimary,
-    marginBottom: 5,
-    paddingVertical: 3,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    color: colors.textSecondary,
+    marginBottom: 3,
   },
-
-  conceptsList: {
+  conceptDisplayItem: {
+    backgroundColor: colors.stone100,
+    padding: 8,
+    borderRadius: 4,
+    marginBottom: 6,
+    width: "100%",
+  },
+  conceptText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  allSkillsContainer: {
     width: "100%",
     marginTop: 15,
     padding: 10,
     backgroundColor: colors.stone100,
     borderRadius: 6,
   },
-  listItemText: { fontSize: 14, color: colors.textPrimary, marginBottom: 4 },
-
-  mySkillsList: {
+  skillListItem: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 3,
+  },
+  mySkillsContainer: {
     width: "100%",
-    marginVertical: 15,
+    marginVertical: 10,
     padding: 10,
-    backgroundColor: colors.stone50,
+    backgroundColor: colors.stone200,
     borderRadius: 6,
   },
-  skillChip: {
+  mySkillItem: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.secondary,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    marginBottom: 6,
+    alignItems: "center",
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
-  skillChipText: {
-    color: colors.secondaryContrast,
+  mySkillText: {
     fontSize: 15,
-    fontWeight: "500",
+    color: colors.textPrimary,
   },
   removeSkillButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    minHeight: 0,
-    backgroundColor: colors.error,
-    marginLeft: 8,
   },
-  removeSkillButtonText: {
-    fontSize: 12,
-    color: colors.white,
+  removeSkillText: {
+    color: colors.error,
+    fontSize: 18,
     fontWeight: "bold",
   },
-  definedSkillsList: {
+  modifierButtonsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+    marginBottom: 15,
     width: "100%",
-    marginTop: 20,
+  },
+  modifierButton: {
+    backgroundColor: colors.secondary,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    margin: 4,
+    minWidth: "45%",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.transparent,
+  },
+  modifierButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.stone300,
+  },
+  modifierButtonUsed: {
+    backgroundColor: colors.stone200,
+    opacity: 0.6,
+  },
+  modifierButtonText: {
+    color: colors.secondaryContrast,
+    fontWeight: "500",
+    fontSize: 13,
+  },
+  modifierButtonTextActive: {
+    color: colors.primary,
+  },
+  skillsListScrollView: {
+    maxHeight: 200,
+    width: "100%",
+    borderColor: colors.divider,
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 5,
+    marginBottom: 10,
+  },
+  skillItemForModifier: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.stone200,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  skillItemHoverable: {
+    backgroundColor: colors.stone100,
+  },
+  skillItemAssigned: {
+    backgroundColor: colors.success + "33", // Light green tint
+  },
+  skillNameText: {
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  assignedModifierText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: colors.primary,
+  },
+  myModifiersSummary: {
+    width: "100%",
+    marginTop: 15,
     padding: 10,
     backgroundColor: colors.stone100,
     borderRadius: 6,
-  },
-
-  tokenText: {
-    fontSize: 16,
-    color: colors.secondaryContrast,
-    backgroundColor: colors.secondary,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginTop: 15,
   },
 });
 

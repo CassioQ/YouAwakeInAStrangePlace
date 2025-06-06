@@ -19,6 +19,8 @@ import {
   PlayerConceptEntry,
   DefinedSkill,
   PlayerSkillAllocation,
+  PlayerSkillModifierChoice,
+  PlayerModifierSelectionStatus,
 } from "../../models/GameServer.types";
 import {
   listenToGameSetup,
@@ -32,6 +34,12 @@ import { showAppAlert } from "../../utils/alertUtils";
 
 const defaultAvatar =
   "https://ui-avatars.com/api/?name=P&background=random&size=40";
+const MODIFIER_VALUES_DISPLAY = [
+  { label: "Incrível", value: 2 },
+  { label: "Bom", value: 1 },
+  { label: "Ruim", value: -1 },
+  { label: "Horrível", value: -2 },
+];
 
 const GMGameSetupMonitorScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -123,12 +131,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
     );
   }
 
-  const allPlayersRolledInitial =
-    activeGameSetup.playerRolls &&
-    activeGameSetup.numPlayersAtSetupStart > 0 &&
-    activeGameSetup.playerRolls.length ===
-      activeGameSetup.numPlayersAtSetupStart;
-
   let currentPhaseDisplay = "Aguardando...";
   switch (activeGameSetup.currentPhase) {
     case GameSetupPhase.ROLLING:
@@ -158,6 +160,9 @@ const GMGameSetupMonitorScreen: React.FC = () => {
     case GameSetupPhase.DEFINING_GM_SKILLS:
       currentPhaseDisplay = "Mestre Definindo Habilidades";
       break;
+    case GameSetupPhase.ASSIGNING_SKILL_MODIFIERS:
+      currentPhaseDisplay = "Jogadores Atribuindo Modificadores";
+      break;
     case GameSetupPhase.AWAITING_GAME_START:
       currentPhaseDisplay = "Aguardando Início do Jogo";
       break;
@@ -165,7 +170,13 @@ const GMGameSetupMonitorScreen: React.FC = () => {
 
   const currentPlayerDefiningName = activeGameSetup.currentPlayerIdToDefine
     ? getPlayerNameById(activeGameSetup.currentPlayerIdToDefine)
-    : "Ninguém (ou todos simultaneamente)";
+    : activeGameSetup.currentPhase ===
+          GameSetupPhase.DEFINING_CHARACTER_CONCEPTS ||
+        activeGameSetup.currentPhase ===
+          GameSetupPhase.ASSIGNING_SKILL_MODIFIERS ||
+        activeGameSetup.currentPhase === GameSetupPhase.AWAITING_GAME_START
+      ? "Todos os Jogadores"
+      : "Ninguém";
 
   const renderPlayerAllocations = () => {
     if (
@@ -187,6 +198,52 @@ const GMGameSetupMonitorScreen: React.FC = () => {
     });
   };
 
+  const renderPlayerModifierStatus = () => {
+    if (
+      !activeGameSetup.playerModifierSelectionStatus ||
+      !activeServerDetails.players
+    )
+      return null;
+    return activeServerDetails.players.map((player) => {
+      const status =
+        activeGameSetup.playerModifierSelectionStatus![player.userId];
+      const modifiers =
+        activeGameSetup.playerSkillModifiers?.[player.userId] || [];
+      return (
+        <View key={player.userId} style={styles.playerModifierStatusBox}>
+          <Text style={styles.playerNameSmall}>
+            {player.playerName}:{" "}
+            {status?.finalized ? (
+              <Text style={{ color: colors.success }}>Finalizado</Text>
+            ) : (
+              "Selecionando..."
+            )}{" "}
+            ({status?.assignedModifiers?.length || 0}/4)
+          </Text>
+          {modifiers.length > 0 && (
+            <View style={styles.playerModifiersList}>
+              {modifiers.map((mod) => (
+                <Text key={mod.skillName} style={styles.modifierDetailText}>
+                  {mod.skillName}:{" "}
+                  <Text style={{ fontWeight: "bold" }}>
+                    {mod.modifierValue > 0 ? "+" : ""}
+                    {mod.modifierValue}
+                  </Text>
+                </Text>
+              ))}
+            </View>
+          )}
+        </View>
+      );
+    });
+  };
+
+  const allPlayersFinalizedModifiers =
+    activeGameSetup.playerModifierSelectionStatus &&
+    activeServerDetails.players.every(
+      (p) => activeGameSetup.playerModifierSelectionStatus![p.userId]?.finalized
+    );
+
   return (
     <ScreenWrapper
       title={`MONITOR: ${activeServerDetails.serverName}`}
@@ -204,7 +261,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
           </Text>
         </Text>
 
-        {/* World Definition Summary */}
         <View style={[styles.summaryBox, commonStyles.dashedBorder]}>
           <Text style={styles.summaryTitle}>Definição do Mundo:</Text>
           <Text style={styles.summaryItem}>
@@ -227,7 +283,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
           </Text>
         </View>
 
-        {/* World Truths Summary */}
         {activeGameSetup.worldTruths &&
           activeGameSetup.worldTruths.length > 0 && (
             <View style={[styles.summaryBox, commonStyles.dashedBorder]}>
@@ -244,7 +299,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
             </View>
           )}
 
-        {/* Character Concepts Summary */}
         {activeGameSetup.characterConcepts &&
           (activeGameSetup.currentPhase ===
             GameSetupPhase.DEFINING_CHARACTER_CONCEPTS ||
@@ -275,7 +329,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
             </View>
           )}
 
-        {/* Skill Rolls Summary */}
         {(activeGameSetup.currentPhase === GameSetupPhase.SKILL_DICE_ROLL ||
           activeGameSetup.allSkillRollsSubmitted) &&
           activeGameSetup.skillRolls && (
@@ -296,7 +349,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
             </View>
           )}
 
-        {/* Player Skill Definition Summary */}
         {activeGameSetup.currentPhase ===
           GameSetupPhase.DEFINING_PLAYER_SKILLS &&
           activeGameSetup.skillsPerPlayerAllocation && (
@@ -308,7 +360,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
             </View>
           )}
 
-        {/* Defined Skills List */}
         {activeGameSetup.definedSkills &&
           activeGameSetup.definedSkills.length > 0 && (
             <View style={[styles.summaryBox, commonStyles.dashedBorder]}>
@@ -327,7 +378,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
             </View>
           )}
 
-        {/* GM Skill Definition Section */}
         {activeGameSetup.currentPhase === GameSetupPhase.DEFINING_GM_SKILLS &&
           currentUser?.uid === activeServerDetails.gmId && (
             <View style={[styles.gmActionBox, commonStyles.shadow]}>
@@ -370,10 +420,20 @@ const GMGameSetupMonitorScreen: React.FC = () => {
               >
                 {finalizingGmSkills
                   ? "Finalizando..."
-                  : "Finalizar Habilidades e Iniciar Jogo"}
+                  : "Finalizar Habilidades"}
               </StyledButton>
             </View>
           )}
+
+        {activeGameSetup.currentPhase ===
+          GameSetupPhase.ASSIGNING_SKILL_MODIFIERS && (
+          <View style={[styles.summaryBox, commonStyles.dashedBorder]}>
+            <Text style={styles.summaryTitle}>
+              Atribuição de Modificadores:
+            </Text>
+            {renderPlayerModifierStatus()}
+          </View>
+        )}
 
         {activeGameSetup.currentPhase ===
           GameSetupPhase.AWAITING_GAME_START && (
@@ -390,6 +450,7 @@ const GMGameSetupMonitorScreen: React.FC = () => {
               backgroundColor: colors.success,
               paddingVertical: 15,
             }}
+            disabled={!allPlayersFinalizedModifiers}
           >
             INICIAR SESSÃO DE JOGO
           </StyledButton>
@@ -468,6 +529,25 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginBottom: 10,
     textAlign: "center",
+  },
+  playerModifierStatusBox: {
+    marginBottom: 8,
+    padding: 8,
+    backgroundColor: colors.white,
+    borderRadius: 4,
+  },
+  playerNameSmall: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+  playerModifiersList: {
+    paddingLeft: 10,
+    marginTop: 4,
+  },
+  modifierDetailText: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
 });
 

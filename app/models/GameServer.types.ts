@@ -9,7 +9,7 @@ export interface PlayerInLobby {
   playerName: string;
   characterId?: string | null;
   characterName?: string | null;
-  skills?: Skill[] | null;
+  skills?: Skill[] | null; // This might be populated after character creation
   avatarUrl?: string | null;
 }
 
@@ -39,7 +39,6 @@ export interface WorldTruth {
   order: number;
 }
 
-// New interfaces for character creation phase
 export interface PlayerConceptEntry {
   playerId: string;
   playerName: string;
@@ -49,7 +48,7 @@ export interface PlayerConceptEntry {
 
 export interface DefinedSkill {
   skillName: string;
-  definedByPlayerId: string; // Player or GM ID
+  definedByPlayerId: string;
   definedByPlayerName: string;
   type: "player" | "gm";
 }
@@ -57,33 +56,47 @@ export interface DefinedSkill {
 export interface PlayerSkillAllocation {
   totalToDefine: number;
   definedCount: number;
-  finalized: boolean; // Player has confirmed their skill choices for this turn/allocation
+  finalized: boolean;
+}
+
+export interface PlayerSkillModifierChoice {
+  skillName: string;
+  modifierValue: number; // +2, +1, -1, -2
+}
+
+export interface PlayerModifierSelectionStatus {
+  assignedModifiers: number[]; // Stores the values (+2, +1, -1, -2) that have been used
+  finalized: boolean;
 }
 
 export interface GameSetupState {
   currentPhase: GameSetupPhase;
   numPlayersAtSetupStart: number;
-  playerRolls: PlayerRoll[]; // For initial world definition order
-  definitionOrder?: string[]; // Player IDs sorted by initial roll
-  currentPlayerIdToDefine?: string | null; // Player ID for current world def or skill def turn
+  playerRolls: PlayerRoll[];
+  definitionOrder?: string[];
+  currentPlayerIdToDefine?: string | null;
   worldDefinition: WorldDefinition;
   interferenceTokens?: { [playerId: string]: number };
 
   worldTruths?: WorldTruth[];
   currentPlayerTruthIndex?: number;
 
-  // Character Creation Fields
   characterConcepts?: PlayerConceptEntry[];
   allConceptsSubmitted?: boolean;
 
-  skillRolls?: PlayerRoll[]; // For skill definition order
+  skillRolls?: PlayerRoll[];
   allSkillRollsSubmitted?: boolean;
 
   skillsPerPlayerAllocation?: { [playerId: string]: PlayerSkillAllocation };
-  currentPlayerSkillDefOrderIndex?: number; // Index for skill definition turn based on sorted skillRolls
+  currentPlayerSkillDefOrderIndex?: number;
 
   definedSkills?: DefinedSkill[];
   gmSkillsDefinedCount?: number;
+
+  playerSkillModifiers?: { [playerId: string]: PlayerSkillModifierChoice[] };
+  playerModifierSelectionStatus?: {
+    [playerId: string]: PlayerModifierSelectionStatus;
+  };
 }
 
 export interface GameServer {
