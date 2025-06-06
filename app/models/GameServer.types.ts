@@ -32,15 +32,25 @@ export interface WorldDefinition {
   location?: WorldDefinitionPart;
 }
 
+export interface WorldTruth {
+  truth: string;
+  definedByPlayerId: string;
+  definedByPlayerName: string;
+  order: number; // 1-indexed for display clarity
+}
+
 export interface GameSetupState {
   currentPhase: GameSetupPhase;
   numPlayersAtSetupStart: number;
-  playerRolls: PlayerRoll[]; // Store as array of objects for easier sorting and tie-breaking
-  definitionOrder?: string[]; // Array of player IDs in order of definition
-  currentPlayerIdToDefine?: string | null; // ID of the player currently defining
-  worldDefinition: WorldDefinition; // Stores the defined genre, adjective, location
-  interferenceTokens?: { [playerId: string]: number }; // Map of player ID to token count
-  // Add other setup related fields here, e.g., character creation progress
+  playerRolls: PlayerRoll[];
+  definitionOrder?: string[];
+  currentPlayerIdToDefine?: string | null;
+  worldDefinition: WorldDefinition;
+  interferenceTokens?: { [playerId: string]: number };
+
+  // Fields for World Truths
+  worldTruths?: WorldTruth[];
+  currentPlayerTruthIndex?: number; // Index in definitionOrder for current truth definer
 }
 
 export interface GameServer {

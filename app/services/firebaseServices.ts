@@ -26,6 +26,7 @@ import {
   GameSetupState,
   PlayerRoll,
   WorldDefinition,
+  WorldTruth,
 } from "../models/GameServer.types";
 import { UserProfile } from "../models/UserProfile.types";
 import {
@@ -328,6 +329,8 @@ export const startGame = async (
       definitionOrder: [],
       interferenceTokens: {},
       currentPlayerIdToDefine: null,
+      worldTruths: [],
+      currentPlayerTruthIndex: 0,
     };
 
     await updateDoc(serverDocRef, {
@@ -393,7 +396,6 @@ export const processPlayerRollsAndAssignDefinitions = async (
     if (b.rollValue !== a.rollValue) {
       return b.rollValue - a.rollValue;
     }
-    // Tie-breaking: earlier roll wins
     const aTime =
       a.rolledAt instanceof Timestamp
         ? a.rolledAt.toMillis()
@@ -412,7 +414,7 @@ export const processPlayerRollsAndAssignDefinitions = async (
 
   if (numPlayers > 3) {
     for (let i = 3; i < definitionOrderFromRolls.length; i++) {
-      interferenceTokens[definitionOrderFromRolls[i]] = 1; // Or some other logic
+      interferenceTokens[definitionOrderFromRolls[i]] = 1;
     }
   }
 
@@ -441,7 +443,7 @@ export const submitPlayerRoll = async (
     playerId,
     playerName,
     rollValue,
-    rolledAt: new Date(), // Client-side Date, converted to Timestamp on write by Firestore
+    rolledAt: new Date(),
   };
 
   try {
@@ -462,7 +464,6 @@ export const submitPlayerRoll = async (
     let updatedRolls = [...gameSetup.playerRolls];
 
     if (existingRollIndex > -1) {
-      // Player is re-rolling or updating, replace their roll
       updatedRolls[existingRollIndex] = playerRollData;
     } else {
       updatedRolls.push(playerRollData);
@@ -476,7 +477,6 @@ export const submitPlayerRoll = async (
 
     await updateDoc(serverDocRef, updatePayload);
 
-    // Check if all players have rolled
     if (updatedRolls.length === gameSetup.numPlayersAtSetupStart) {
       await processPlayerRollsAndAssignDefinitions(serverId);
     }
@@ -526,11 +526,15 @@ export const submitWorldDefinitionPart = async (
     let nextPlayerIdToDefine: string | null = null;
 
     const numPlayers = gameSetup.numPlayersAtSetupStart;
-    const currentDefinitionOrder = gameSetup.definitionOrder; // Use the existing order
+    const currentDefinitionOrder = gameSetup.definitionOrder;
 
     const updatedWorldDefinition = {
       ...gameSetup.worldDefinition,
       ...worldDefinitionUpdate,
+    };
+    const updatePayload: any = {
+      "gameSetup.worldDefinition": updatedWorldDefinition,
+      lastActivityAt: serverTimestamp(),
     };
 
     if (definitionType === "genre") {
@@ -543,23 +547,83 @@ export const submitWorldDefinitionPart = async (
       nextPhase = GameSetupPhase.DEFINING_LOCATION;
       if (numPlayers === 1) nextPlayerIdToDefine = currentDefinitionOrder[0];
       else if (numPlayers === 2)
-        nextPlayerIdToDefine = currentDefinitionOrder[0]; // Player 1 defines genre & location
+        nextPlayerIdToDefine = currentDefinitionOrder[0];
       else
         nextPlayerIdToDefine =
           currentDefinitionOrder[2 % currentDefinitionOrder.length];
     } else if (definitionType === "location") {
-      nextPhase = GameSetupPhase.CHARACTER_CREATION;
-      nextPlayerIdToDefine = null;
+      nextPhase = GameSetupPhase.DEFINING_TRUTHS; // Transition to defining truths
+      nextPlayerIdToDefine = currentDefinitionOrder[0]; // First player in order defines the first truth
+      updatePayload["gameSetup.worldTruths"] = [];
+      updatePayload["gameSetup.currentPlayerTruthIndex"] = 0;
     }
 
-    await updateDoc(serverDocRef, {
-      "gameSetup.worldDefinition": updatedWorldDefinition,
-      "gameSetup.currentPhase": nextPhase,
-      "gameSetup.currentPlayerIdToDefine": nextPlayerIdToDefine,
-      lastActivityAt: serverTimestamp(),
-    });
+    updatePayload["gameSetup.currentPhase"] = nextPhase;
+    updatePayload["gameSetup.currentPlayerIdToDefine"] = nextPlayerIdToDefine;
+
+    await updateDoc(serverDocRef, updatePayload);
   } catch (error) {
     console.error("Error submitting world definition part:", error);
     throw new Error("Falha ao submeter definição.");
+  }
+};
+
+export const submitWorldTruth = async (
+  serverId: string,
+  playerId: string,
+  playerName: string,
+  truthText: string
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  try {
+    const serverSnap = await getDoc(serverDocRef);
+    if (!serverSnap.exists()) throw new Error("Servidor não encontrado.");
+    const serverData = serverSnap.data() as GameServer;
+    const gameSetup = serverData.gameSetup;
+
+    if (
+      !gameSetup ||
+      gameSetup.currentPhase !== GameSetupPhase.DEFINING_TRUTHS ||
+      !gameSetup.definitionOrder
+    ) {
+      throw new Error(
+        "Não é a fase de definir verdades ou a ordem de definição não está pronta."
+      );
+    }
+    if (gameSetup.currentPlayerIdToDefine !== playerId) {
+      throw new Error("Não é sua vez de definir uma verdade.");
+    }
+
+    const currentTruths = gameSetup.worldTruths || [];
+    const newTruth: WorldTruth = {
+      truth: truthText,
+      definedByPlayerId: playerId,
+      definedByPlayerName: playerName,
+      order: currentTruths.length + 1,
+    };
+
+    const updatedTruths = [...currentTruths, newTruth];
+    let nextPhase = GameSetupPhase.DEFINING_TRUTHS;
+    let nextPlayerIdToDefine: string | null = null;
+    let nextPlayerTruthIndex = (gameSetup.currentPlayerTruthIndex ?? -1) + 1;
+
+    if (nextPlayerTruthIndex >= gameSetup.definitionOrder.length) {
+      nextPhase = GameSetupPhase.CHARACTER_CREATION;
+      nextPlayerIdToDefine = null;
+      nextPlayerTruthIndex = 0;
+    } else {
+      nextPlayerIdToDefine = gameSetup.definitionOrder[nextPlayerTruthIndex];
+    }
+
+    await updateDoc(serverDocRef, {
+      "gameSetup.worldTruths": updatedTruths,
+      "gameSetup.currentPhase": nextPhase,
+      "gameSetup.currentPlayerIdToDefine": nextPlayerIdToDefine,
+      "gameSetup.currentPlayerTruthIndex": nextPlayerTruthIndex,
+      lastActivityAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error submitting world truth:", error);
+    throw error;
   }
 };

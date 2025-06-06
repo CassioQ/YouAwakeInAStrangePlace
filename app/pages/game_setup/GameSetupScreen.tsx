@@ -10,15 +10,17 @@ import {
 import ScreenWrapper from "../../components/ScreenWrapper";
 import StyledButton from "../../components/StyledButton";
 import StyledInput from "../../components/StyledInput";
+import StyledTextarea from "../../components/StyledTextarea"; // Import StyledTextarea
 import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import { AppContext } from "../../contexts/AppContexts";
-import { GameSetupPhase, ScreenEnum } from "../../models/enums/CommomEnuns"; // Added ScreenEnum import
+import { GameSetupPhase, ScreenEnum } from "../../models/enums/CommomEnuns";
 import { PlayerRoll } from "../../models/GameServer.types";
 import {
   listenToGameSetup,
   submitPlayerRoll,
   submitWorldDefinitionPart,
+  submitWorldTruth, // Import new service
 } from "../../services/firebaseServices";
 import { Unsubscribe } from "firebase/firestore";
 import { showAppAlert } from "../../utils/alertUtils";
@@ -33,6 +35,8 @@ const GameSetupScreen: React.FC = () => {
   const [myRoll, setMyRoll] = useState<number | null>(null);
   const [definitionInput, setDefinitionInput] = useState("");
   const [submittingDefinition, setSubmittingDefinition] = useState(false);
+  const [truthInput, setTruthInput] = useState(""); // State for truth input
+  const [submittingTruth, setSubmittingTruth] = useState(false); // State for truth submission
 
   if (!context) return null;
   const {
@@ -62,6 +66,7 @@ const GameSetupScreen: React.FC = () => {
               setMyRoll(null);
             }
           }
+          // This check remains for when character creation is the *final* step from this screen's perspective
           if (setupData?.currentPhase === GameSetupPhase.CHARACTER_CREATION) {
             navigateTo(ScreenEnum.CHARACTER_CREATE_THEME);
           }
@@ -143,6 +148,42 @@ const GameSetupScreen: React.FC = () => {
     }
   };
 
+  const handleSubmitTruth = async () => {
+    if (
+      !currentUser ||
+      !activeServerDetails?.id ||
+      !activeGameSetup ||
+      !truthInput.trim()
+    )
+      return;
+    if (
+      activeGameSetup.currentPlayerIdToDefine !== currentUser.uid ||
+      activeGameSetup.currentPhase !== GameSetupPhase.DEFINING_TRUTHS
+    ) {
+      showAppAlert(
+        "Atenção",
+        "Não é sua vez de definir uma verdade ou fase incorreta."
+      );
+      return;
+    }
+    setSubmittingTruth(true);
+    try {
+      await submitWorldTruth(
+        activeServerDetails.id,
+        currentUser.uid,
+        currentUser.displayName ||
+          currentUser.email?.split("@")[0] ||
+          "Jogador Anônimo",
+        truthInput
+      );
+      setTruthInput("");
+    } catch (error: any) {
+      showAppAlert("Erro ao Submeter Verdade", error.message);
+    } finally {
+      setSubmittingTruth(false);
+    }
+  };
+
   const renderRollsList = () => {
     if (
       !activeGameSetup?.playerRolls ||
@@ -180,15 +221,11 @@ const GameSetupScreen: React.FC = () => {
   const renderDefinitionPhase = () => {
     if (!activeGameSetup || !currentUser) return null;
 
-    const {
-      currentPhase,
-      currentPlayerIdToDefine,
-      worldDefinition,
-      definitionOrder,
-    } = activeGameSetup;
+    const { currentPhase, currentPlayerIdToDefine, worldDefinition } =
+      activeGameSetup;
     const isMyTurnToDefine = currentPlayerIdToDefine === currentUser.uid;
     let currentDefinerName = "";
-    if (currentPlayerIdToDefine && definitionOrder) {
+    if (currentPlayerIdToDefine) {
       currentDefinerName = getPlayerNameById(currentPlayerIdToDefine);
     }
 
@@ -261,6 +298,60 @@ const GameSetupScreen: React.FC = () => {
     );
   };
 
+  const renderTruthDefinitionPhase = () => {
+    if (!activeGameSetup || !currentUser) return null;
+    const { currentPlayerIdToDefine, worldTruths } = activeGameSetup;
+    const isMyTurnToDefineTruth = currentPlayerIdToDefine === currentUser.uid;
+    const currentTruthDefinerName = currentPlayerIdToDefine
+      ? getPlayerNameById(currentPlayerIdToDefine)
+      : "próximo jogador";
+
+    return (
+      <View style={styles.definitionContainer}>
+        <Text style={styles.headerText}>Definindo Verdades do Mundo</Text>
+        <Text style={styles.promptText}>
+          Converse com os outros jogadores e o Mestre para definir uma Verdade
+          sobre este mundo.
+        </Text>
+        {worldTruths && worldTruths.length > 0 && (
+          <View style={styles.truthsList}>
+            <Text style={styles.subHeaderText}>Verdades Definidas:</Text>
+            {worldTruths.map((truth, index) => (
+              <Text key={index} style={styles.truthItem}>
+                {truth.order}. {truth.truth} (por {truth.definedByPlayerName})
+              </Text>
+            ))}
+          </View>
+        )}
+        {isMyTurnToDefineTruth ? (
+          <>
+            <StyledTextarea
+              label="Sua Verdade sobre o Mundo"
+              value={truthInput}
+              onChangeText={setTruthInput}
+              placeholder="Ex: A principal ameaça são Ciber-Aranhas."
+              rows={3}
+              containerStyle={{ width: "100%", marginVertical: 10 }}
+              autoFocus
+            />
+            <StyledButton
+              onPress={handleSubmitTruth}
+              disabled={submittingTruth || !truthInput.trim()}
+              props_variant="primary"
+              style={styles.submitButton}
+            >
+              {submittingTruth ? "Enviando Verdade..." : "Submeter Verdade"}
+            </StyledButton>
+          </>
+        ) : (
+          <Text style={styles.waitingText}>
+            Aguardando {currentTruthDefinerName} definir uma Verdade...
+          </Text>
+        )}
+      </View>
+    );
+  };
+
   if (!activeGameSetup) {
     return (
       <ScreenWrapper title="CONFIGURAÇÃO DO JOGO">
@@ -315,10 +406,13 @@ const GameSetupScreen: React.FC = () => {
           </>
         )}
 
-        {activeGameSetup.currentPhase !== GameSetupPhase.ROLLING &&
-          activeGameSetup.currentPhase !== GameSetupPhase.CHARACTER_CREATION &&
-          activeGameSetup.currentPhase !== GameSetupPhase.READY_TO_PLAY &&
+        {(activeGameSetup.currentPhase === GameSetupPhase.DEFINING_GENRE ||
+          activeGameSetup.currentPhase === GameSetupPhase.DEFINING_ADJECTIVE ||
+          activeGameSetup.currentPhase === GameSetupPhase.DEFINING_LOCATION) &&
           renderDefinitionPhase()}
+
+        {activeGameSetup.currentPhase === GameSetupPhase.DEFINING_TRUTHS &&
+          renderTruthDefinitionPhase()}
 
         {myTokens !== undefined && myTokens && myTokens > 0 && (
           <Text style={styles.tokenText}>
@@ -343,8 +437,8 @@ const GameSetupScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    // This is now contentContainerStyle for the ScrollView
-    paddingBottom: 20, // Ensure space at the bottom if content is long
+    padding: 10, // Added some padding
+    paddingBottom: 20,
     alignItems: "center",
   },
   centeredMessage: {
@@ -363,6 +457,14 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 20,
     textAlign: "center",
+  },
+  subHeaderText: {
+    // For "Verdades Definidas:"
+    fontSize: 18,
+    fontWeight: "500",
+    color: colors.textPrimary,
+    marginTop: 15,
+    marginBottom: 5,
   },
   rollButton: {
     marginBottom: 20,
@@ -400,7 +502,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     alignSelf: "flex-start",
-    width: "100%", // Ensure header takes width within padded scrollview
+    width: "100%",
   },
   rollsContainer: {
     width: "100%",
@@ -470,6 +572,27 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginTop: 15,
+  },
+  promptText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: "center",
+    fontStyle: "italic",
+    marginBottom: 15,
+    paddingHorizontal: 10,
+  },
+  truthsList: {
+    width: "100%",
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: colors.stone100,
+    borderRadius: 6,
+  },
+  truthItem: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    marginBottom: 5,
+    paddingVertical: 3,
   },
 });
 

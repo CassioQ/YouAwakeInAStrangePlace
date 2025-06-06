@@ -13,10 +13,10 @@ import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import { AppContext } from "../../contexts/AppContexts";
 import { GameSetupPhase } from "../../models/enums/CommomEnuns";
-import { PlayerRoll } from "../../models/GameServer.types";
+import { PlayerRoll, WorldTruth } from "../../models/GameServer.types";
 import { listenToGameSetup } from "../../services/firebaseServices";
 import { Unsubscribe } from "firebase/firestore";
-import StyledButton from "../../components/StyledButton"; // For future "Start Session" button
+import StyledButton from "../../components/StyledButton";
 
 const defaultAvatar =
   "https://ui-avatars.com/api/?name=P&background=random&size=40";
@@ -98,6 +98,9 @@ const GMGameSetupMonitorScreen: React.FC = () => {
     case GameSetupPhase.DEFINING_LOCATION:
       currentPhaseDisplay = "Definindo Local";
       break;
+    case GameSetupPhase.DEFINING_TRUTHS:
+      currentPhaseDisplay = "Definindo Verdades do Mundo";
+      break;
     case GameSetupPhase.CHARACTER_CREATION:
       currentPhaseDisplay = "Criação de Personagens";
       break;
@@ -118,16 +121,17 @@ const GMGameSetupMonitorScreen: React.FC = () => {
           <Text style={styles.phaseText}>{currentPhaseDisplay}</Text>
         </Text>
 
-        {activeGameSetup.currentPhase !== GameSetupPhase.ROLLING &&
-          activeGameSetup.currentPhase !== GameSetupPhase.CHARACTER_CREATION &&
-          activeGameSetup.currentPhase !== GameSetupPhase.READY_TO_PLAY && (
-            <Text style={styles.currentDefinerText}>
-              Vez de:{" "}
-              <Text style={{ fontWeight: "bold" }}>
-                {currentPlayerDefiningName}
-              </Text>
+        {(activeGameSetup.currentPhase === GameSetupPhase.DEFINING_GENRE ||
+          activeGameSetup.currentPhase === GameSetupPhase.DEFINING_ADJECTIVE ||
+          activeGameSetup.currentPhase === GameSetupPhase.DEFINING_LOCATION ||
+          activeGameSetup.currentPhase === GameSetupPhase.DEFINING_TRUTHS) && (
+          <Text style={styles.currentDefinerText}>
+            Vez de:{" "}
+            <Text style={{ fontWeight: "bold" }}>
+              {currentPlayerDefiningName}
             </Text>
-          )}
+          </Text>
+        )}
 
         <Text style={styles.subHeader}>
           Rolagens ({activeGameSetup.playerRolls?.length || 0} /{" "}
@@ -200,6 +204,28 @@ const GMGameSetupMonitorScreen: React.FC = () => {
               `(por ${activeGameSetup.worldDefinition.location.definedByPlayerName})`}
           </Text>
         </View>
+
+        {activeGameSetup.worldTruths &&
+          activeGameSetup.worldTruths.length > 0 && (
+            <View
+              style={[
+                styles.worldDefBox,
+                commonStyles.dashedBorder,
+                { marginTop: 15 },
+              ]}
+            >
+              <Text style={styles.worldDefTitle}>Verdades do Mundo:</Text>
+              {activeGameSetup.worldTruths.map(
+                (truthItem: WorldTruth, index: number) => (
+                  <Text key={index} style={styles.worldDefItem}>
+                    {truthItem.order}.{" "}
+                    <Text style={styles.worldDefValue}>{truthItem.truth}</Text>{" "}
+                    (por {truthItem.definedByPlayerName})
+                  </Text>
+                )
+              )}
+            </View>
+          )}
 
         {activeGameSetup.currentPhase === GameSetupPhase.READY_TO_PLAY && (
           <StyledButton

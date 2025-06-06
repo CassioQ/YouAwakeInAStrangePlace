@@ -39,6 +39,7 @@ export enum GameSetupPhase {
   DEFINING_GENRE = "defining_genre",
   DEFINING_ADJECTIVE = "defining_adjective",
   DEFINING_LOCATION = "defining_location",
-  CHARACTER_CREATION = "character_creation", // Players create characters
-  READY_TO_PLAY = "ready_to_play", // All players ready, GM can start session
+  DEFINING_TRUTHS = "defining_truths",
+  CHARACTER_CREATION = "character_creation",
+  READY_TO_PLAY = "ready_to_play",
 }
