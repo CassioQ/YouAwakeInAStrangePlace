@@ -9,17 +9,16 @@ import {
 
 import { colors } from "./styles/colors";
 import { AppContext, AppProvider } from "./contexts/AppContexts";
-import { ScreenEnum } from "./models/enums/CommomEnuns";
+import {
+  ScreenEnum,
+  UserRole as UserRoleEnum,
+} from "./models/enums/CommomEnuns"; // aliased UserRole to UserRoleEnum
 
 // Import screens
 import LoginScreen from "./pages/login/LoginScreen";
 import EmailLoginScreen from "./pages/login/EmailLoginScreen";
 import EmailSignUpScreen from "./pages/login/EmailSignUpScreen";
 import AccessScreen from "./pages/AccessScreen";
-// CharacterDev screens might be deprecated or used differently with the new setup flow
-// import CharacterDevDetailsScreen from "./pages/CharacterDevDetailsScreen";
-// import CharacterDevNameDescScreen from "./pages/CharacterDevNameDescScreen";
-// import CharacterDevThemeScreen from "./pages/CharacterDevThemeScreen";
 import CharacterSheetScreen from "./pages/CharacterSheetScreen";
 import HomeScreen from "./pages/HomeScreen";
 import CreateServerScreen from "./pages/gm/CreateServerScreen";
@@ -27,6 +26,7 @@ import GMLobbyScreen from "./pages/gm/GMLobbyScreen";
 import PlayerLobbyScreen from "./pages/player/PlayerLobbyScreen";
 import GameSetupScreen from "./pages/game_setup/GameSetupScreen";
 import GMGameSetupMonitorScreen from "./pages/game_setup/GMGameSetupMonitorScreen";
+import PlayerGameplayScreen from "./pages/gameplay/PlayerGameplayScreen"; // Added
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
@@ -39,7 +39,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  const { currentUser, isLoadingAuth, currentScreen } = context;
+  const { currentUser, isLoadingAuth, currentScreen, userRole } = context; // Added userRole for gameplay navigation
 
   if (isLoadingAuth) {
     return (
@@ -71,7 +71,9 @@ const AppContent: React.FC = () => {
   console.log(
     "[App.tsx] Current Screen:",
     ScreenEnum[currentScreen],
-    `(${currentScreen})`
+    `(${currentScreen})`,
+    "Role:",
+    userRole ? userRole : "None" // Changed UserRole to UserRoleEnum
   );
 
   switch (currentScreen) {
@@ -86,17 +88,14 @@ const AppContent: React.FC = () => {
     case ScreenEnum.PLAYER_LOBBY:
       return <PlayerLobbyScreen />;
     case ScreenEnum.GAME_SETUP_PLAYER:
-      return <GameSetupScreen />; // Handles all player-side setup phases now
+      return <GameSetupScreen />;
     case ScreenEnum.GAME_SETUP_GM_MONITOR:
-      return <GMGameSetupMonitorScreen />; // Handles all GM-side setup monitoring
-    // The CHARACTER_CREATE_* screens are likely superseded by the new GameSetupScreen flow
-    // case ScreenEnum.CHARACTER_CREATE_THEME:
-    //   return <CharacterDevThemeScreen />;
-    // case ScreenEnum.CHARACTER_CREATE_DETAILS:
-    //   return <CharacterDevDetailsScreen />;
-    // case ScreenEnum.CHARACTER_CREATE_NAME_DESC_SKILL:
-    //   return <CharacterDevNameDescScreen />;
-    case ScreenEnum.CHARACTER_SHEET: // Still used for viewing the character
+      return <GMGameSetupMonitorScreen />;
+    case ScreenEnum.PLAYER_GAMEPLAY: // Added
+      return <PlayerGameplayScreen />;
+    // case ScreenEnum.GM_GAMEPLAY: // To be added
+    //   return <GMGameplayScreen />;
+    case ScreenEnum.CHARACTER_SHEET:
       return <CharacterSheetScreen />;
     default:
       if (

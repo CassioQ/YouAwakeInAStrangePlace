@@ -16,15 +16,21 @@ import {
   PlayerInLobby,
   GameServer,
   GameServerStatus,
+  GameSetupState,
+  GameplayState,
 } from "../../models/GameServer.types";
 import {
   listenToLobbyPlayers,
   getGameServerDetails,
   startGame,
-  listenToServerStatus,
+  listenToServerStatusAndPhase,
   updateServerTimestamps,
 } from "../../services/firebaseServices";
-import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
+import {
+  ScreenEnum,
+  UserRole,
+  GamePhase,
+} from "../../models/enums/CommomEnuns"; // Added GamePhase here
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";
 import { showAppAlert } from "../../utils/alertUtils";
@@ -90,21 +96,31 @@ const GMLobbyScreen: React.FC = () => {
               setLobbyPlayers(players);
             }
           );
-          unsubscribeStatusListener = listenToServerStatus(
+          unsubscribeStatusListener = listenToServerStatusAndPhase(
             activeServerDetails.id,
-            (status, gameSetupData) => {
-              setServerDetails((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      status,
-                      gameSetup: gameSetupData || prev.gameSetup,
-                    }
-                  : null
-              );
+            (
+              status: GameServerStatus,
+              gamePhase: GamePhase | undefined,
+              gameSetupData: GameSetupState | undefined,
+              gameplayData: GameplayState | undefined
+            ) => {
+              setServerDetails((prev) => {
+                if (!prev) return null;
+                const newDetails: GameServer = {
+                  ...prev,
+                  status,
+                  gamePhase: gamePhase || prev.gamePhase,
+                  gameSetup: gameSetupData || prev.gameSetup,
+                  gameplay: gameplayData || prev.gameplay,
+                };
+                return newDetails;
+              });
               setActiveGameSetup(gameSetupData || null);
-              if (status === "in-progress") {
+              // Navigate based on gamePhase (already handled in AppContext, but can be specific here too)
+              if (gamePhase === GamePhase.SETUP && gameSetupData) {
                 navigateTo(ScreenEnum.GAME_SETUP_GM_MONITOR);
+              } else if (gamePhase === GamePhase.ACTIVE && gameplayData) {
+                navigateTo(ScreenEnum.GM_GAMEPLAY);
               }
             }
           );
@@ -153,6 +169,7 @@ const GMLobbyScreen: React.FC = () => {
     const success = await startGame(serverDetails.id, lobbyPlayers);
     if (success) {
       // Navigation to GAME_SETUP_GM_MONITOR is handled by the status listener
+      // when gamePhase becomes SETUP
     } else {
       showAppAlert(
         "Erro",
@@ -163,7 +180,7 @@ const GMLobbyScreen: React.FC = () => {
   };
 
   const canStartGame =
-    lobbyPlayers.length > 0 && serverDetails?.status === "lobby";
+    lobbyPlayers.length > 0 && serverDetails?.gamePhase === GamePhase.LOBBY;
 
   const renderListHeader = () => (
     <>
@@ -187,15 +204,22 @@ const GMLobbyScreen: React.FC = () => {
               styles.infoValue,
               {
                 color:
-                  serverDetails.status === "in-progress"
+                  serverDetails.gamePhase === GamePhase.SETUP ||
+                  serverDetails.gamePhase === GamePhase.ACTIVE
                     ? colors.success
                     : colors.textPrimary,
               },
             ]}
           >
-            {serverDetails.status === "lobby" && "Aguardando Jogadores"}
-            {serverDetails.status === "in-progress" && "Partida em Andamento"}
-            {serverDetails.status === "finished" && "Partida Finalizada"}
+            {serverDetails.gamePhase === GamePhase.LOBBY &&
+              "Aguardando Jogadores"}
+            {serverDetails.gamePhase === GamePhase.SETUP &&
+              "Configuração em Andamento"}
+            {serverDetails.gamePhase === GamePhase.ACTIVE &&
+              "Partida em Andamento"}
+            {serverDetails.gamePhase === GamePhase.ENDED &&
+              "Partida Finalizada"}
+            {serverDetails.gamePhase === GamePhase.PAUSED && "Partida Pausada"}
           </Text>
         </View>
       )}
@@ -259,7 +283,7 @@ const GMLobbyScreen: React.FC = () => {
 
   return (
     <ScreenWrapper
-      title={`MONITOR: ${activeServerDetails?.serverName || "Lobby do Mestre"}`}
+      title={`MONITOR: ${activeServerDetails?.serverName ?? ""}`}
       childHandlesScrolling={true}
     >
       <FlatList
@@ -285,24 +309,20 @@ const GMLobbyScreen: React.FC = () => {
               <Text style={styles.characterName}>
                 Personagem: {item.characterName || "Aguardando..."}
               </Text>
+              {/* Skills are not directly in PlayerInLobby anymore
               {item.skills && item.skills.length > 0 ? (
                 <>
                   <Text style={styles.skillsTitle}>Habilidades:</Text>
                   {item.skills.map((skill, index) => (
                     <Text key={index} style={styles.skillText}>
-                      - {skill.name} (
-                      {skill.modifier >= 0
-                        ? `+${skill.modifier}`
-                        : skill.modifier}
-                      )
+                      - {skill.name} ({skill.modifier >= 0 ? `+${skill.modifier}` : skill.modifier})
                     </Text>
                   ))}
                 </>
               ) : (
-                <Text style={styles.skillText}>
-                  Habilidades ainda não definidas.
-                </Text>
+                <Text style={styles.skillText}>Habilidades ainda não definidas.</Text>
               )}
+              */}
             </View>
           </View>
         )}
@@ -363,6 +383,7 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
   },
   listContentContainer: {
+    paddingHorizontal: 16, // Added padding to match ScreenWrapper
     paddingBottom: 20,
   },
   playerCard: {

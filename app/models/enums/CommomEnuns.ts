@@ -14,11 +14,13 @@ export enum ScreenEnum {
   PLAYER_LOBBY = "PLAYER_LOBBY",
   GAME_SETUP_PLAYER = "GAME_SETUP_PLAYER",
   GAME_SETUP_GM_MONITOR = "GAME_SETUP_GM_MONITOR",
-  GAME_IN_PROGRESS_PLAYER = "GAME_IN_PROGRESS_PLAYER",
-  GAME_IN_PROGRESS_GM = "GAME_IN_PROGRESS_GM",
-  CHARACTER_CREATE_DETAILS = "CHARACTER_CREATE_DETAILS", // deprecated by new flow
-  CHARACTER_CREATE_NAME_DESC_SKILL = "CHARACTER_CREATE_NAME_DESC_SKILL", // deprecated by new flow
+  PLAYER_GAMEPLAY = "PLAYER_GAMEPLAY",
+  GM_GAMEPLAY = "GM_GAMEPLAY",
   CHARACTER_SHEET = "CHARACTER_SHEET",
+  // Deprecated by new setup flow, but re-added to fix direct errors:
+  CHARACTER_CREATE_THEME = "CHARACTER_CREATE_THEME",
+  CHARACTER_CREATE_DETAILS = "CHARACTER_CREATE_DETAILS",
+  CHARACTER_CREATE_NAME_DESC_SKILL = "CHARACTER_CREATE_NAME_DESC_SKILL",
 }
 
 export enum CharacterCreationStep {
@@ -45,4 +47,13 @@ export enum GameSetupPhase {
   DEFINING_GM_SKILLS = "defining_gm_skills",
   ASSIGNING_SKILL_MODIFIERS = "assigning_skill_modifiers",
   AWAITING_GAME_START = "awaiting_game_start",
+  // GAMEPLAY_ACTIVE = "gameplay_active", // Might be better to use GamePhase
+}
+
+export enum GamePhase {
+  LOBBY = "lobby", // Existing server status
+  SETUP = "setup", // When gameSetup is active
+  ACTIVE = "active", // Gameplay is active
+  PAUSED = "paused",
+  ENDED = "ended",
 }

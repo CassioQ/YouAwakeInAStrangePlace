@@ -5,11 +5,15 @@ import React, {
   ReactNode,
   useEffect,
 } from "react";
-import { Platform } from "react-native"; // Alert removed, showAppAlert will handle it
+import { Platform } from "react-native";
 import { AppContextType } from "../models/AppContext.types";
 import { Character } from "../models/Character.types";
-import { ScreenEnum, UserRole } from "../models/enums/CommomEnuns";
-import { GameServer, GameSetupState } from "../models/GameServer.types";
+import { ScreenEnum, UserRole, GamePhase } from "../models/enums/CommomEnuns";
+import {
+  GameServer,
+  GameSetupState,
+  GameplayState,
+} from "../models/GameServer.types";
 import { UserProfile } from "../models/UserProfile.types";
 import {
   auth,
@@ -21,13 +25,21 @@ import {
   signOut as firebaseSignOut,
   updateProfile as firebaseUpdateProfile,
 } from "../../firebase";
-import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  serverTimestamp,
+  Timestamp, // Import Timestamp
+} from "firebase/firestore";
 
 import {
   fetchUserProfileData,
   updateUserActiveServerId as fbUpdateUserActiveServerId,
+  listenToServerStatusAndPhase,
 } from "../services/firebaseServices";
-import { showAppAlert } from "../utils/alertUtils"; // Import the utility
+import { showAppAlert } from "../utils/alertUtils";
+import { Unsubscribe } from "firebase/firestore";
 
 // Expo Auth Session
 import * as WebBrowser from "expo-web-browser";
@@ -43,7 +55,7 @@ import {
 
 import * as AuthSession from "expo-auth-session";
 
-console.log("Redirect URI:", AuthSession.makeRedirectUri());
+console.log("Redirect URI for AuthSession:", AuthSession.makeRedirectUri());
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -84,6 +96,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     useState<GameServer | null>(null);
   const [activeGameSetup, setActiveGameSetupState] =
     useState<GameSetupState | null>(null);
+  const [gameplayState, setGameplayState] = useState<GameplayState | null>(
+    null
+  );
+  const [serverListenerUnsubscribe, setServerListenerUnsubscribe] =
+    useState<Unsubscribe | null>(null);
 
   const db = getFirestore();
 
@@ -104,9 +121,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     try {
       const profile = await fetchUserProfileData(userId);
       setUserProfileState(profile);
-      if (profile?.activeGmServerId || profile?.activePlayerServerId) {
-        // If there's an active server, HomeScreen will handle the alert.
-      }
     } catch (error) {
       console.error("Error fetching user profile in context:", error);
       setUserProfileState(null);
@@ -114,54 +128,101 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }, []);
 
   const navigateTo = useCallback((screen: ScreenEnum) => {
+    // console.log(`[AppContext] Navigating to: ${ScreenEnum[screen]} from ${ScreenEnum[currentScreen]}`);
     setCurrentScreen(screen);
   }, []);
 
+  const resetCharacterInProgress = useCallback(() => {
+    setCharacterInProgress(initialCharacterInProgress);
+  }, []);
+
+  const clearUserActiveServerId = useCallback(
+    async (role: UserRole) => {
+      if (currentUser) {
+        try {
+          await fbUpdateUserActiveServerId(currentUser.uid, role, null);
+          setUserProfileState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ...(role === UserRole.GM && { activeGmServerId: null }),
+                  ...(role === UserRole.PLAYER && {
+                    activePlayerServerId: null,
+                  }),
+                }
+              : null
+          );
+        } catch (error) {
+          console.error("Error clearing user active server ID:", error);
+        }
+      }
+    },
+    [currentUser]
+  );
+
+  // Effect for Firebase Auth State changes
   useEffect(() => {
+    setIsLoadingAuth(true);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
         await fetchUserProfile(user.uid);
         const userProfileRef = doc(db, "userProfiles", user.uid);
-        await setDoc(
-          userProfileRef,
-          {
-            userId: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            lastLoginAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        // If user is authenticated and currently on a login/signup screen, redirect to HOME
-        if (
-          currentScreen === ScreenEnum.LOGIN ||
-          currentScreen === ScreenEnum.EMAIL_LOGIN ||
-          currentScreen === ScreenEnum.EMAIL_SIGNUP
-        ) {
-          navigateTo(ScreenEnum.HOME);
+        try {
+          await setDoc(
+            userProfileRef,
+            {
+              userId: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              lastLoginAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.error(
+            "Error setting user profile doc in onAuthStateChanged:",
+            e
+          );
         }
       } else {
         setUserProfileState(null);
         setUserRoleState(null);
-        resetCharacterInProgress();
+        resetCharacterInProgress(); // Now declared
         setCreatedCharacterState(null);
-        setActiveServerDetailsState(null);
+        setActiveServerDetailsState(null); // This will trigger serverListener cleanup if needed
         setActiveGameSetupState(null);
-        // If user is not authenticated, ensure they are on a login screen
-        if (
-          currentScreen !== ScreenEnum.LOGIN &&
-          currentScreen !== ScreenEnum.EMAIL_LOGIN &&
-          currentScreen !== ScreenEnum.EMAIL_SIGNUP
-        ) {
-          navigateTo(ScreenEnum.LOGIN);
-        }
+        setGameplayState(null);
       }
       setIsLoadingAuth(false);
     });
-    return () => unsubscribe();
-  }, [fetchUserProfile, currentScreen, navigateTo]); // navigateTo is now defined before this useEffect
+    return () => unsubscribe(); // Cleanup Firebase auth listener
+  }, [fetchUserProfile, resetCharacterInProgress]);
+
+  // Effect for navigation based on auth state and current screen
+  useEffect(() => {
+    if (isLoadingAuth) return; // Wait until auth state is resolved
+
+    if (currentUser) {
+      // User is logged in
+      if (
+        currentScreen === ScreenEnum.LOGIN ||
+        currentScreen === ScreenEnum.EMAIL_LOGIN ||
+        currentScreen === ScreenEnum.EMAIL_SIGNUP
+      ) {
+        navigateTo(ScreenEnum.HOME);
+      }
+    } else {
+      // No user / User is logged out
+      if (
+        currentScreen !== ScreenEnum.LOGIN &&
+        currentScreen !== ScreenEnum.EMAIL_LOGIN &&
+        currentScreen !== ScreenEnum.EMAIL_SIGNUP
+      ) {
+        navigateTo(ScreenEnum.LOGIN);
+      }
+    }
+  }, [currentUser, isLoadingAuth, currentScreen, navigateTo]);
 
   useEffect(() => {
     if (googleResponse?.type === "success") {
@@ -176,7 +237,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               "Não foi possível fazer login com Google via Firebase."
             );
           })
-          .finally(() => setIsLoadingAuth(false));
+          .finally(() => setIsLoadingAuth(false)); // Ensure loading is stopped
       } else {
         showAppAlert("Erro de Login", "Token do Google não recebido.");
         setIsLoadingAuth(false);
@@ -209,7 +270,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               "Não foi possível fazer login com Facebook via Firebase."
             );
           })
-          .finally(() => setIsLoadingAuth(false));
+          .finally(() => setIsLoadingAuth(false)); // Ensure loading is stopped
       } else {
         showAppAlert("Erro de Login", "Token do Facebook não recebido.");
         setIsLoadingAuth(false);
@@ -229,12 +290,131 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [facebookResponse]);
 
+  // Listener for server status, gamePhase, gameSetup, and gameplay updates
+  useEffect(() => {
+    let unsubscribe: Unsubscribe | null = null;
+
+    if (activeServerDetails?.id && currentUser) {
+      unsubscribe = listenToServerStatusAndPhase(
+        activeServerDetails.id,
+        (status, gamePhase, gameSetupData, gameplayData) => {
+          // console.log(`[AppContext] Server Update Received: Phase: ${gamePhase}, Status: ${status}, Setup: ${gameSetupData ? 'Yes' : 'No'}, Gameplay: ${gameplayData ? 'Yes' : 'No'}`);
+
+          setActiveServerDetailsState((prev) => {
+            if (!prev) return null;
+            // Only update if there's a meaningful change to avoid unnecessary re-renders
+            if (
+              prev.status === status &&
+              prev.gamePhase === gamePhase &&
+              prev.gameSetup === gameSetupData &&
+              prev.gameplay === gameplayData
+            ) {
+              return prev;
+            }
+            return {
+              ...prev,
+              status,
+              gamePhase: gamePhase || prev.gamePhase,
+              gameSetup: gameSetupData || prev.gameSetup,
+              gameplay: gameplayData || prev.gameplay,
+            };
+          });
+          setActiveGameSetupState(gameSetupData || null);
+          setGameplayState(gameplayData || null);
+
+          // Navigation logic based on gamePhase
+          if (gamePhase === GamePhase.ACTIVE) {
+            if (
+              userRole === UserRole.GM &&
+              currentScreen !== ScreenEnum.GM_GAMEPLAY
+            ) {
+              navigateTo(ScreenEnum.GM_GAMEPLAY);
+            } else if (
+              userRole === UserRole.PLAYER &&
+              currentScreen !== ScreenEnum.PLAYER_GAMEPLAY
+            ) {
+              navigateTo(ScreenEnum.PLAYER_GAMEPLAY);
+            }
+          } else if (gamePhase === GamePhase.SETUP && gameSetupData) {
+            if (
+              userRole === UserRole.GM &&
+              currentScreen !== ScreenEnum.GAME_SETUP_GM_MONITOR
+            ) {
+              navigateTo(ScreenEnum.GAME_SETUP_GM_MONITOR);
+            } else if (
+              userRole === UserRole.PLAYER &&
+              currentScreen !== ScreenEnum.GAME_SETUP_PLAYER
+            ) {
+              navigateTo(ScreenEnum.GAME_SETUP_PLAYER);
+            }
+          } else if (gamePhase === GamePhase.LOBBY) {
+            if (
+              userRole === UserRole.GM &&
+              currentScreen !== ScreenEnum.GM_LOBBY
+            ) {
+              navigateTo(ScreenEnum.GM_LOBBY);
+            } else if (
+              userRole === UserRole.PLAYER &&
+              currentScreen !== ScreenEnum.PLAYER_LOBBY
+            ) {
+              navigateTo(ScreenEnum.PLAYER_LOBBY);
+            }
+          } else if (gamePhase === GamePhase.ENDED) {
+            showAppAlert(
+              "Partida Finalizada",
+              "A sessão de jogo foi encerrada."
+            );
+            if (currentUser)
+              clearUserActiveServerId(userRole || UserRole.PLAYER); // Now declared
+            navigateTo(ScreenEnum.HOME);
+          }
+        }
+      );
+      setServerListenerUnsubscribe(() => unsubscribe); // Store the new unsubscribe function
+    } else {
+      // Ensure cleanup if no active server or user, or if the old listener exists
+      if (serverListenerUnsubscribe) {
+        serverListenerUnsubscribe();
+        setServerListenerUnsubscribe(null);
+      }
+    }
+
+    return () => {
+      // Cleanup for this effect instance
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      if (
+        serverListenerUnsubscribe &&
+        !activeServerDetails?.id &&
+        !currentUser
+      ) {
+        //This case is important if the effect re-runs due to other deps but server/user are null
+        serverListenerUnsubscribe();
+        setServerListenerUnsubscribe(null);
+      }
+    };
+  }, [
+    activeServerDetails?.id,
+    currentUser,
+    userRole,
+    navigateTo,
+    currentScreen,
+    clearUserActiveServerId,
+  ]);
+
   const loginWithGoogle = async (): Promise<FirebaseUser | null> => {
     setIsLoadingAuth(true);
     try {
       await promptGoogleAsync();
-      return null;
+      // onAuthStateChanged will handle success/failure
+      return auth.currentUser; // Return current user state, though onAuthStateChanged is primary
     } catch (error: any) {
+      console.error("Google login prompt error:", error);
+      showAppAlert(
+        "Erro de Login",
+        "Não foi possível iniciar o login com Google."
+      );
       setIsLoadingAuth(false);
       return null;
     }
@@ -244,8 +424,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       await promptFacebookAsync();
-      return null;
+      // onAuthStateChanged will handle success/failure
+      return auth.currentUser;
     } catch (error: any) {
+      console.error("Facebook login prompt error:", error);
+      showAppAlert(
+        "Erro de Login",
+        "Não foi possível iniciar o login com Facebook."
+      );
       setIsLoadingAuth(false);
       return null;
     }
@@ -254,40 +440,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     setIsLoadingAuth(true);
     try {
+      if (currentUser && userProfile?.activePlayerServerId) {
+        await clearUserActiveServerId(UserRole.PLAYER);
+      }
+      if (currentUser && userProfile?.activeGmServerId) {
+        await clearUserActiveServerId(UserRole.GM);
+      }
       await firebaseSignOut(auth);
+      // States reset by onAuthStateChanged
     } catch (error: any) {
       showAppAlert(
         "Erro de Logout",
         error.message || "Não foi possível fazer logout."
       );
     } finally {
-      setIsLoadingAuth(false);
+      // setIsLoadingAuth(false); // This is handled by onAuthStateChanged
     }
   };
-
-  const clearUserActiveServerId = useCallback(
-    async (role: UserRole) => {
-      if (currentUser) {
-        try {
-          await fbUpdateUserActiveServerId(currentUser.uid, role, null);
-          setUserProfileState((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  ...(role === UserRole.GM && { activeGmServerId: null }),
-                  ...(role === UserRole.PLAYER && {
-                    activePlayerServerId: null,
-                  }),
-                }
-              : null
-          );
-        } catch (error) {
-          console.error("Error clearing user active server ID:", error);
-        }
-      }
-    },
-    [currentUser]
-  );
 
   const setUserRole = useCallback((role: UserRole | null) => {
     setUserRoleState(role);
@@ -299,10 +468,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     },
     []
   );
-
-  const resetCharacterInProgress = useCallback(() => {
-    setCharacterInProgress(initialCharacterInProgress);
-  }, []);
 
   const finalizeCharacter = useCallback((): Character | null => {
     if (!characterInProgress.name || !characterInProgress.primarySkillName) {
@@ -406,6 +571,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setActiveServerDetails,
         activeGameSetup,
         setActiveGameSetup,
+        gameplayState,
+        setGameplayState,
         loginWithGoogle,
         loginWithFacebook,
         logout,

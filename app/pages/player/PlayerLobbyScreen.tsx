@@ -17,14 +17,19 @@ import {
   GameServer,
   GameServerStatus,
   GameSetupState,
+  GameplayState,
 } from "../../models/GameServer.types";
 import {
   listenToLobbyPlayers,
-  listenToServerStatus,
+  listenToServerStatusAndPhase,
   leaveGameServer,
   updateServerTimestamps,
 } from "../../services/firebaseServices";
-import { ScreenEnum, UserRole } from "../../models/enums/CommomEnuns";
+import {
+  ScreenEnum,
+  UserRole,
+  GamePhase,
+} from "../../models/enums/CommomEnuns"; // Added GamePhase here
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";
 import { showAppAlert } from "../../utils/alertUtils";
@@ -86,19 +91,32 @@ const PlayerLobbyScreen: React.FC = () => {
         }
       );
 
-      unsubscribeStatusListener = listenToServerStatus(
+      unsubscribeStatusListener = listenToServerStatusAndPhase(
         globalActiveServerDetails.id,
-        (status, gameSetupData) => {
-          setServerDetails((prev) =>
-            prev
-              ? { ...prev, status, gameSetup: gameSetupData || prev.gameSetup }
-              : null
-          );
+        (
+          status: GameServerStatus,
+          gamePhase: GamePhase | undefined,
+          gameSetupData: GameSetupState | undefined,
+          gameplayData: GameplayState | undefined
+        ) => {
+          setServerDetails((prev) => {
+            if (!prev) return null;
+            const newDetails: GameServer = {
+              ...prev,
+              status,
+              gamePhase: gamePhase || prev.gamePhase,
+              gameSetup: gameSetupData || prev.gameSetup,
+              gameplay: gameplayData || prev.gameplay,
+            };
+            return newDetails;
+          });
           setActiveGameSetup(gameSetupData || null);
 
-          if (status === "in-progress" && gameSetupData) {
+          if (gamePhase === GamePhase.SETUP && gameSetupData) {
             navigateTo(ScreenEnum.GAME_SETUP_PLAYER);
-          } else if (status === "finished") {
+          } else if (gamePhase === GamePhase.ACTIVE && gameplayData) {
+            navigateTo(ScreenEnum.PLAYER_GAMEPLAY);
+          } else if (gamePhase === GamePhase.ENDED) {
             showAppAlert("Partida Finalizada", "O mestre encerrou a partida.");
             handleLeaveLobby(true);
           }
@@ -148,24 +166,29 @@ const PlayerLobbyScreen: React.FC = () => {
         >
           <Text style={styles.infoLabel}>Servidor:</Text>
           <Text style={styles.infoValue}>{serverDetails.serverName}</Text>
-          {serverDetails.status === "lobby" && (
+          {serverDetails.gamePhase === GamePhase.LOBBY && (
             <Text style={styles.waitingMessage}>
               Aguardando o Mestre iniciar a partida...
             </Text>
           )}
-          {serverDetails.status === "in-progress" &&
+          {serverDetails.gamePhase === GamePhase.SETUP &&
             !serverDetails.gameSetup && (
               <Text style={[styles.waitingMessage, { color: colors.primary }]}>
                 Preparando configuração do jogo...
               </Text>
             )}
-          {serverDetails.status === "in-progress" &&
+          {serverDetails.gamePhase === GamePhase.SETUP &&
             serverDetails.gameSetup && (
               <Text style={[styles.waitingMessage, { color: colors.success }]}>
                 Configuração do jogo em andamento!
               </Text>
             )}
-          {serverDetails.status === "finished" && (
+          {serverDetails.gamePhase === GamePhase.ACTIVE && (
+            <Text style={[styles.waitingMessage, { color: colors.success }]}>
+              Jogo em Andamento!
+            </Text>
+          )}
+          {serverDetails.gamePhase === GamePhase.ENDED && (
             <Text style={[styles.waitingMessage, { color: colors.error }]}>
               Partida Finalizada.
             </Text>
@@ -260,9 +283,9 @@ const PlayerLobbyScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    // Not directly used by FlatList parent anymore, but parts might be relevant for ListHeader/Footer
-    flex: 1,
+  listContentContainer: {
+    paddingHorizontal: 16, // Added to match ScreenWrapper
+    paddingBottom: 20,
   },
   centeredMessage: {
     flex: 1,
@@ -313,9 +336,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     paddingBottom: 5,
-  },
-  listContentContainer: {
-    paddingBottom: 20,
   },
   playerCard: {
     backgroundColor: colors.stone100,

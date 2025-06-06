@@ -1,15 +1,14 @@
 import { FieldValue, Timestamp } from "firebase/firestore";
-import { Skill } from "./Character.types"; // Assuming Skill might be reused or adapted
-import { GameSetupPhase } from "./enums/CommomEnuns";
+import { GameSetupPhase, GamePhase } from "./enums/CommomEnuns"; // Added GamePhase
 
-export type GameServerStatus = "lobby" | "in-progress" | "finished";
+export type GameServerStatus = "lobby" | "in-progress" | "finished"; // This might be deprecated by GamePhase
 
 export interface PlayerInLobby {
   userId: string;
   playerName: string;
   characterId?: string | null;
   characterName?: string | null;
-  skills?: Skill[] | null; // This might be populated after character creation
+  // skills?: Skill[] | null; // Skills are now part of PlayerGameplayState or derived from gameSetup
   avatarUrl?: string | null;
 }
 
@@ -99,6 +98,40 @@ export interface GameSetupState {
   };
 }
 
+// Gameplay specific state
+export interface PlayerGameplayState {
+  userId: string;
+  characterName: string;
+  avatarUrl?: string;
+  maxHp: number;
+  currentHp: number;
+  assignedSkills: PlayerSkillModifierChoice[]; // The 4 chosen skills with their modifiers
+  // Potentially other gameplay-specific status effects, inventory IDs, etc.
+}
+
+export interface GameLogEntry {
+  id: string; // Unique ID for the log entry (e.g., timestamp + random string)
+  timestamp: FieldValue;
+  type: "roll" | "chat" | "info" | "system";
+  playerId?: string; // ID of the player who performed the action or sent the message
+  playerName?: string; // Name of the player
+  message: string; // Main text of the log (e.g., "rolled Perception (+1) and got 12")
+  rollDetails?: {
+    skillName: string;
+    diceResult: [number, number]; // [d1, d2]
+    modifier: number;
+    totalRoll: number;
+  };
+  // Potentially other details based on type
+}
+
+export interface GameplayState {
+  playerStates: { [playerId: string]: PlayerGameplayState }; // Keyed by playerId
+  gameLog: GameLogEntry[];
+  currentTurnPlayerId?: string | null; // For future turn-based actions
+  // Other global gameplay states like round number, environment effects, etc.
+}
+
 export interface GameServer {
   id: string;
   serverName: string;
@@ -106,8 +139,11 @@ export interface GameServer {
   gmId: string;
   createdAt: FieldValue;
   players: PlayerInLobby[];
-  status: GameServerStatus;
+  status: GameServerStatus; // This might be primarily managed by gamePhase now
+  gamePhase?: GamePhase; // New phase for overall game state
   lastActivityAt: FieldValue;
   gmLastSeenAt: FieldValue;
-  gameSetup?: GameSetupState;
+  gameSetup?: GameSetupState | null; // Can be set to null after setup completion
+  gameplay?: GameplayState; // New field for active gameplay data
 }
+export { GamePhase };
