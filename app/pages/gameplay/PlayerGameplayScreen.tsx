@@ -1,123 +1,169 @@
-import React, { useContext, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import React, { useContext, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { AppContext } from "../../contexts/AppContexts";
-import { GameplayState, GameLogEntry } from "../../models/GameServer.types";
+import {
+  GameplayState,
+  GameLogEntry,
+  DefinedSkill,
+} from "../../models/GameServer.types";
 import { ScreenEnum } from "../../models/enums/CommomEnuns";
 import { colors } from "../../styles/colors";
-import { commonStyles } from "../../styles/commonStyles";
 import PlayerFooter from "../../components/gameplay/PlayerFooter";
-import PlayerListFAB from "../../components/gameplay/PlayerListFAB";
-// Import listenToGameplayState if not already handled by AppContext's main listener
-// import { listenToGameplayState } from "../../services/firebaseServices";
-// import { Unsubscribe } from "firebase/firestore";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 const PlayerGameplayScreen: React.FC = () => {
   const context = useContext(AppContext);
-  // const [localGameplayState, setLocalGameplayState] = useState<GameplayState | null>(null);
-  // const [loadingGameplay, setLoadingGameplay] = useState(true);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   if (!context) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text>Erro: Contexto não disponível.</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
-  const { currentUser, activeServerDetails, gameplayState, navigateTo } = context;
+  const {
+    currentUser,
+    activeServerDetails,
+    gameplayState,
+    activeGameSetup,
+    navigateTo,
+  } = context;
 
-  // Gameplay state is now managed by AppContext and updated by its listener
-  // useEffect(() => {
-  //   let unsubscribe: Unsubscribe | undefined;
-  //   if (activeServerDetails?.id) {
-  //     setLoadingGameplay(true);
-  //     unsubscribe = listenToGameplayState(activeServerDetails.id, (gameplay) => {
-  //       setLocalGameplayState(gameplay || null);
-  //       setLoadingGameplay(false);
-  //     });
-  //   } else {
-  //     setLocalGameplayState(null);
-  //     setLoadingGameplay(false);
-  //   }
-  //   return () => {
-  //     if (unsubscribe) unsubscribe();
-  //   };
-  // }, [activeServerDetails?.id]);
+  useEffect(() => {
+    if (gameplayState?.gameLog) {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [gameplayState?.gameLog]);
 
   if (!currentUser || !activeServerDetails) {
-    // Should not happen if navigation is correct, but good failsafe
     useEffect(() => {
       navigateTo(ScreenEnum.HOME);
     }, [navigateTo]);
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Erro: Dados do jogador ou servidor ausentes. Redirecionando...</Text>
-      </View>
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text>
+          Erro: Dados do jogador ou servidor ausentes. Redirecionando...
+        </Text>
+      </SafeAreaView>
     );
   }
 
-  if (!gameplayState) {
+  if (!gameplayState || !activeGameSetup) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.infoText}>Carregando dados do jogo...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   const myPlayerGameplayState = gameplayState.playerStates[currentUser.uid];
+  const allDefinedSkills: DefinedSkill[] = activeGameSetup.definedSkills || [];
 
   if (!myPlayerGameplayState) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Erro: Dados do seu personagem não encontrados no jogo.</Text>
-        <PlayerFooter characterName="Desconhecido" currentHp={0} maxHp={0} skills={[]} serverId={activeServerDetails.id} playerId={currentUser.uid} playerName={currentUser.displayName || "Jogador"} />
-      </View>
+      <SafeAreaView style={styles.screenContainer}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>
+            Erro: Dados do seu personagem não encontrados no jogo.
+          </Text>
+        </View>
+        <PlayerFooter
+          characterName="Desconhecido"
+          currentHp={0}
+          maxHp={0}
+          playerAssignedSkills={[]}
+          allDefinedSkills={[]}
+          serverId={activeServerDetails.id}
+          playerId={currentUser.uid}
+          playerName={currentUser.displayName || "Jogador"}
+          interferenceTokens={0}
+          allPlayerStates={[]}
+        />
+      </SafeAreaView>
     );
   }
 
   const renderGameLog = () => {
     if (!gameplayState.gameLog || gameplayState.gameLog.length === 0) {
-      return <Text style={styles.emptyLogText}>Nenhuma atividade no jogo ainda.</Text>;
+      return (
+        <Text style={styles.emptyLogText}>
+          Nenhuma atividade no jogo ainda.
+        </Text>
+      );
     }
-    return gameplayState.gameLog.slice().reverse().map((entry: GameLogEntry) => ( // Slice to avoid mutating original, reverse for newest first
-      <View key={entry.id} style={styles.logEntry}>
+    // No need to reverse here, new logs are added to the end, and ScrollView scrolls to end.
+    return gameplayState.gameLog.map((entry: GameLogEntry) => (
+      <View
+        key={entry.id}
+        style={[
+          styles.logEntry,
+          entry.type === "system" && styles.logEntrySystem,
+          entry.type === "token" && styles.logEntryToken,
+        ]}
+      >
         <Text style={styles.logTimestamp}>
-          {/* @ts-ignore TODO: fix timestamp type */}
-          {entry.timestamp?.toDate ? entry.timestamp.toDate().toLocaleTimeString() : 'agora'}
+          {entry.timestamp &&
+          typeof entry.timestamp === "object" &&
+          "toDate" in entry.timestamp
+            ? (entry.timestamp as { toDate: () => Date })
+                .toDate()
+                .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "agora"}
         </Text>
         <Text style={styles.logMessage}>
-          <Text style={styles.logPlayerName}>{entry.playerName || entry.type}: </Text>
+          <Text style={styles.logPlayerName}>
+            {entry.playerName || entry.type.toUpperCase()}:{" "}
+          </Text>
           {entry.message}
         </Text>
       </View>
     ));
   };
 
-
   return (
-    <View style={styles.screenContainer}>
-      <PlayerListFAB players={Object.values(gameplayState.playerStates)} />
-      
-      <ScrollView 
-        style={styles.chatArea}
-        contentContainerStyle={styles.chatContentContainer}
-        ref={ref => { /* Store ref to scroll to bottom on new messages */}}
+    <SafeAreaView style={styles.screenContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        {/* Chat messages will go here - Render Game Log for now */}
-        {renderGameLog()}
-      </ScrollView>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatArea}
+          contentContainerStyle={styles.chatContentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {renderGameLog()}
+        </ScrollView>
 
-      <PlayerFooter
-        characterName={myPlayerGameplayState.characterName}
-        currentHp={myPlayerGameplayState.currentHp}
-        maxHp={myPlayerGameplayState.maxHp}
-        skills={myPlayerGameplayState.assignedSkills}
-        serverId={activeServerDetails.id}
-        playerId={currentUser.uid}
-        playerName={currentUser.displayName || myPlayerGameplayState.characterName || "Jogador"}
-      />
-    </View>
+        <PlayerFooter
+          characterName={myPlayerGameplayState.characterName}
+          currentHp={myPlayerGameplayState.currentHp}
+          maxHp={myPlayerGameplayState.maxHp}
+          playerAssignedSkills={myPlayerGameplayState.assignedSkills}
+          allDefinedSkills={allDefinedSkills}
+          serverId={activeServerDetails.id}
+          playerId={currentUser.uid}
+          playerName={
+            currentUser.displayName ||
+            myPlayerGameplayState.characterName ||
+            "Jogador"
+          }
+          interferenceTokens={myPlayerGameplayState.interferenceTokens}
+          allPlayerStates={Object.values(gameplayState.playerStates)}
+        />
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -140,21 +186,21 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     color: colors.error,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 10,
   },
   chatArea: {
     flex: 1,
     paddingHorizontal: 10,
-    paddingTop: 10, // Space for PlayerListFAB potentially
+    // paddingTop: 10, // Removed, footer is fixed below
   },
   chatContentContainer: {
-    paddingBottom: 10, // Ensure last message isn't hidden by footer
+    paddingVertical: 10,
   },
   emptyLogText: {
-    textAlign: 'center',
+    textAlign: "center",
     color: colors.textLight,
-    fontStyle: 'italic',
+    fontStyle: "italic",
     marginTop: 20,
   },
   logEntry: {
@@ -163,6 +209,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 6,
     marginBottom: 6,
+  },
+  logEntrySystem: {
+    backgroundColor: colors.secondary,
+  },
+  logEntryToken: {
+    backgroundColor: colors.primary + "33", // Light primary
+    borderColor: colors.primary,
+    borderWidth: 1,
   },
   logTimestamp: {
     fontSize: 10,
@@ -174,9 +228,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   logPlayerName: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.textPrimary,
-  }
+  },
 });
 
 export default PlayerGameplayScreen;

@@ -8,7 +8,6 @@ export interface PlayerInLobby {
   playerName: string;
   characterId?: string | null;
   characterName?: string | null;
-  // skills?: Skill[] | null; // Skills are now part of PlayerGameplayState or derived from gameSetup
   avatarUrl?: string | null;
 }
 
@@ -106,13 +105,13 @@ export interface PlayerGameplayState {
   maxHp: number;
   currentHp: number;
   assignedSkills: PlayerSkillModifierChoice[]; // The 4 chosen skills with their modifiers
-  // Potentially other gameplay-specific status effects, inventory IDs, etc.
+  interferenceTokens: number; // Added for interference tokens
 }
 
 export interface GameLogEntry {
   id: string; // Unique ID for the log entry (e.g., timestamp + random string)
-  timestamp: FieldValue;
-  type: "roll" | "chat" | "info" | "system";
+  timestamp: FieldValue | Timestamp; // Allow both FieldValue for writing and Timestamp for reading
+  type: "roll" | "chat" | "info" | "system" | "token"; // Added "token" type
   playerId?: string; // ID of the player who performed the action or sent the message
   playerName?: string; // Name of the player
   message: string; // Main text of the log (e.g., "rolled Perception (+1) and got 12")
@@ -122,14 +121,12 @@ export interface GameLogEntry {
     modifier: number;
     totalRoll: number;
   };
-  // Potentially other details based on type
 }
 
 export interface GameplayState {
   playerStates: { [playerId: string]: PlayerGameplayState }; // Keyed by playerId
   gameLog: GameLogEntry[];
   currentTurnPlayerId?: string | null; // For future turn-based actions
-  // Other global gameplay states like round number, environment effects, etc.
 }
 
 export interface GameServer {
@@ -139,11 +136,10 @@ export interface GameServer {
   gmId: string;
   createdAt: FieldValue;
   players: PlayerInLobby[];
-  status: GameServerStatus; // This might be primarily managed by gamePhase now
-  gamePhase?: GamePhase; // New phase for overall game state
+  status: GameServerStatus;
+  gamePhase?: GamePhase;
   lastActivityAt: FieldValue;
   gmLastSeenAt: FieldValue;
-  gameSetup?: GameSetupState | null; // Can be set to null after setup completion
-  gameplay?: GameplayState; // New field for active gameplay data
+  gameSetup?: GameSetupState | null;
+  gameplay?: GameplayState;
 }
-export { GamePhase };

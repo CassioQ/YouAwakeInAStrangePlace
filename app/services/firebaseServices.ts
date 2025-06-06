@@ -32,16 +32,16 @@ import {
   PlayerSkillAllocation,
   PlayerSkillModifierChoice,
   PlayerModifierSelectionStatus,
-  GameplayState, // Added
-  PlayerGameplayState, // Added
-  GameLogEntry, // Added
+  GameplayState,
+  PlayerGameplayState,
+  GameLogEntry,
 } from "../models/GameServer.types";
 import { UserProfile } from "../models/UserProfile.types";
 import {
   ScreenEnum,
   UserRole,
   GameSetupPhase,
-  GamePhase, // Added
+  GamePhase,
 } from "../models/enums/CommomEnuns";
 
 const db = getFirestore();
@@ -50,8 +50,7 @@ const TOTAL_PLAYER_SKILLS = 12;
 const TOTAL_GM_SKILLS = 4;
 const TOTAL_SKILLS_OVERALL = TOTAL_PLAYER_SKILLS + TOTAL_GM_SKILLS;
 
-// ... (existing functions: updateUserProfile, fetchUserProfileData, updateUserActiveServerId, updateServerTimestamps, createGameServer, getGameServerDetails, listenToLobbyPlayers, joinGameServer, leaveGameServer, deleteGameServer) ...
-
+// --- Existing User and Server Management Functions ---
 export const updateUserProfile = async (
   userId: string,
   profileData: Partial<UserProfile>
@@ -332,6 +331,7 @@ export const deleteGameServer = async (
   }
 };
 
+// --- Game Setup Flow Functions ---
 export const startGame = async (
   serverId: string,
   playersInLobby: PlayerInLobby[]
@@ -366,8 +366,7 @@ export const startGame = async (
     };
 
     await updateDoc(serverDocRef, {
-      // status: "in-progress" as GameServerStatus, // Will be set to ACTIVE by initiateGameplaySession
-      gamePhase: GamePhase.SETUP, // Indicates setup is in progress
+      gamePhase: GamePhase.SETUP,
       gameSetup: initialGameSetup,
       lastActivityAt: serverTimestamp(),
     });
@@ -379,7 +378,6 @@ export const startGame = async (
 };
 
 export const listenToServerStatusAndPhase = (
-  // Renamed and enhanced
   serverId: string,
   onUpdate: (
     status: GameServerStatus,
@@ -434,8 +432,6 @@ export const listenToGameplayState = (
   });
 };
 
-// ... (ProcessPlayerRolls, SubmitPlayerRoll, SubmitWorldDefinitionPart, SubmitWorldTruth, SubmitCharacterConcept, SubmitSkillRoll, AddPlayerSkill, RemovePlayerSkill, FinalizePlayerSkills, AddGmSkill, FinalizeGmSkills, AssignPlayerSkillModifier, FinalizePlayerSkillModifiers remain largely the same)
-
 export const processPlayerRollsAndAssignDefinitions = async (
   serverId: string
 ): Promise<void> => {
@@ -475,7 +471,8 @@ export const processPlayerRollsAndAssignDefinitions = async (
 
   if (numPlayers > 3) {
     for (let i = 3; i < definitionOrderFromRolls.length; i++) {
-      interferenceTokens[definitionOrderFromRolls[i]] = 1;
+      interferenceTokens[definitionOrderFromRolls[i]] =
+        (interferenceTokens[definitionOrderFromRolls[i]] || 0) + 1;
     }
   }
 
@@ -537,7 +534,6 @@ export const submitPlayerRoll = async (
 
     await updateDoc(serverDocRef, updatePayload);
 
-    // Check if all players have rolled
     if (updatedRolls.length === gameSetup.numPlayersAtSetupStart) {
       await processPlayerRollsAndAssignDefinitions(serverId);
     }
@@ -608,13 +604,13 @@ export const submitWorldDefinitionPart = async (
       nextPhase = GameSetupPhase.DEFINING_LOCATION;
       if (numPlayers === 1) nextPlayerIdToDefine = currentDefinitionOrder[0];
       else if (numPlayers === 2)
-        nextPlayerIdToDefine = currentDefinitionOrder[0];
+        nextPlayerIdToDefine = currentDefinitionOrder[0]; // 1st player defines genre and location
       else
         nextPlayerIdToDefine =
           currentDefinitionOrder[2 % currentDefinitionOrder.length];
     } else if (definitionType === "location") {
       nextPhase = GameSetupPhase.DEFINING_TRUTHS;
-      nextPlayerIdToDefine = currentDefinitionOrder[0];
+      nextPlayerIdToDefine = currentDefinitionOrder[0]; // First player in order starts defining truths
       updatePayload["gameSetup.worldTruths"] = [];
       updatePayload["gameSetup.currentPlayerTruthIndex"] = 0;
     }
@@ -670,8 +666,8 @@ export const submitWorldTruth = async (
 
     if (nextPlayerTruthIndex >= gameSetup.definitionOrder.length) {
       nextPhase = GameSetupPhase.DEFINING_CHARACTER_CONCEPTS;
-      nextPlayerIdToDefine = null;
-      nextPlayerTruthIndex = 0;
+      nextPlayerIdToDefine = null; // All players submit concepts concurrently
+      nextPlayerTruthIndex = 0; // Reset for potential future use or just clear
 
       const initialCharacterConcepts: PlayerConceptEntry[] =
         gameSetup.definitionOrder.map((pid) => {
@@ -742,6 +738,13 @@ export const submitCharacterConcept = async (
     if (conceptIndex === -1) {
       throw new Error("Jogador não encontrado na lista de conceitos.");
     }
+    // Prevent re-submission if already submitted
+    if (gameSetup.characterConcepts[conceptIndex].submitted) {
+      console.log(
+        `Player ${playerId} already submitted their character concept.`
+      );
+      return;
+    }
 
     const updatedConcepts = [...gameSetup.characterConcepts];
     updatedConcepts[conceptIndex] = {
@@ -759,9 +762,9 @@ export const submitCharacterConcept = async (
     if (allSubmitted) {
       updatePayload["gameSetup.allConceptsSubmitted"] = true;
       updatePayload["gameSetup.currentPhase"] = GameSetupPhase.SKILL_DICE_ROLL;
-      updatePayload["gameSetup.skillRolls"] = [];
+      updatePayload["gameSetup.skillRolls"] = []; // Initialize for next phase
       updatePayload["gameSetup.allSkillRollsSubmitted"] = false;
-      updatePayload["gameSetup.currentPlayerIdToDefine"] = null;
+      updatePayload["gameSetup.currentPlayerIdToDefine"] = null; // Reset, as all players roll
     }
     await updateDoc(serverDocRef, updatePayload);
   } catch (error) {
@@ -786,7 +789,7 @@ export const submitSkillRoll = async (
     if (
       !gameSetup ||
       gameSetup.currentPhase !== GameSetupPhase.SKILL_DICE_ROLL ||
-      !gameSetup.skillRolls
+      !gameSetup.skillRolls // Ensure skillRolls array exists
     ) {
       throw new Error(
         "Fase incorreta ou rolagens de habilidade não inicializadas."
@@ -830,7 +833,7 @@ export const submitSkillRoll = async (
         return aTime - bTime;
       });
 
-      updatePayload["gameSetup.skillRolls"] = sortedSkillRolls;
+      updatePayload["gameSetup.skillRolls"] = sortedSkillRolls; // Store sorted rolls
       updatePayload["gameSetup.allSkillRollsSubmitted"] = true;
       updatePayload["gameSetup.currentPhase"] =
         GameSetupPhase.DEFINING_PLAYER_SKILLS;
@@ -856,10 +859,10 @@ export const submitSkillRoll = async (
       });
 
       updatePayload["gameSetup.skillsPerPlayerAllocation"] = skillsAllocation;
-      updatePayload["gameSetup.currentPlayerSkillDefOrderIndex"] = 0;
+      updatePayload["gameSetup.currentPlayerSkillDefOrderIndex"] = 0; // Start with the first player in sorted order
       updatePayload["gameSetup.currentPlayerIdToDefine"] =
         sortedSkillRolls[0]?.playerId || null;
-      updatePayload["gameSetup.definedSkills"] = gameSetup.definedSkills || [];
+      updatePayload["gameSetup.definedSkills"] = gameSetup.definedSkills || []; // Ensure it's initialized
     }
     await updateDoc(serverDocRef, updatePayload);
   } catch (error) {
@@ -953,6 +956,7 @@ export const removePlayerSkill = async (
       );
     }
     if (gameSetup.currentPlayerIdToDefine !== playerId) {
+      // Though technically only the current player should be able to add/remove from their list
       throw new Error("Não é sua vez de remover uma habilidade.");
     }
     const playerAllocation = gameSetup.skillsPerPlayerAllocation[playerId];
@@ -996,13 +1000,13 @@ export const finalizePlayerSkills = async (
     const serverSnap = await getDoc(serverDocRef);
     if (!serverSnap.exists()) throw new Error("Servidor não encontrado.");
     const serverData = serverSnap.data() as GameServer;
-    let gameSetup = serverData.gameSetup;
+    let gameSetup = serverData.gameSetup; // Use let if you might reassign it (though it's better to create a new object for updates)
 
     if (
       !gameSetup ||
       gameSetup.currentPhase !== GameSetupPhase.DEFINING_PLAYER_SKILLS ||
       !gameSetup.skillsPerPlayerAllocation ||
-      !gameSetup.skillRolls
+      !gameSetup.skillRolls // skillRolls is needed to determine the next player
     ) {
       throw new Error(
         "Fase incorreta ou dados de configuração de habilidades ausentes."
@@ -1026,14 +1030,14 @@ export const finalizePlayerSkills = async (
 
     let nextPlayerSkillDefOrderIndex =
       (gameSetup.currentPlayerSkillDefOrderIndex ?? -1) + 1;
-    let nextPhase: GameSetupPhase = gameSetup.currentPhase;
+    let nextPhase: GameSetupPhase = gameSetup.currentPhase; // Explicitly type nextPhase
     let nextPlayerIdToDefine: string | null = null;
 
     if (nextPlayerSkillDefOrderIndex >= gameSetup.skillRolls.length) {
       // All players finished their turns for defining skills
       nextPhase = GameSetupPhase.DEFINING_GM_SKILLS;
       nextPlayerIdToDefine = serverData.gmId;
-      nextPlayerSkillDefOrderIndex = 0;
+      nextPlayerSkillDefOrderIndex = 0; // Reset for GM or clear
     } else {
       nextPlayerIdToDefine =
         gameSetup.skillRolls[nextPlayerSkillDefOrderIndex].playerId;
@@ -1072,7 +1076,7 @@ export const addGmSkill = async (
     if (
       !gameSetup ||
       gameSetup.currentPhase !== GameSetupPhase.DEFINING_GM_SKILLS ||
-      !gameSetup.definedSkills
+      !gameSetup.definedSkills // Ensure definedSkills array exists
     ) {
       throw new Error(
         "Fase incorreta ou dados de configuração de habilidades ausentes."
@@ -1137,7 +1141,6 @@ export const finalizeGmSkills = async (
       );
     }
 
-    // Initialize states for the next phase: ASSIGNING_SKILL_MODIFIERS
     const playerSkillModifiers: {
       [playerId: string]: PlayerSkillModifierChoice[];
     } = {};
@@ -1155,7 +1158,7 @@ export const finalizeGmSkills = async (
 
     await updateDoc(serverDocRef, {
       "gameSetup.currentPhase": GameSetupPhase.ASSIGNING_SKILL_MODIFIERS,
-      "gameSetup.currentPlayerIdToDefine": null,
+      "gameSetup.currentPlayerIdToDefine": null, // All players assign concurrently
       "gameSetup.playerSkillModifiers": playerSkillModifiers,
       "gameSetup.playerModifierSelectionStatus": playerModifierSelectionStatus,
       lastActivityAt: serverTimestamp(),
@@ -1207,13 +1210,18 @@ export const assignPlayerSkillModifier = async (
     }
 
     let currentModifiers = gameSetup.playerSkillModifiers[playerId] || [];
+    // Remove any existing assignment for this MODIFIER VALUE (a modifier can only be used once)
     currentModifiers = currentModifiers.filter(
       (m) => m.modifierValue !== modifierValue
     );
+    // Remove any existing assignment for this SKILL (a skill can only have one modifier)
     currentModifiers = currentModifiers.filter(
       (m) => m.skillName !== skillName
     );
+
+    // Add the new assignment
     currentModifiers.push({ skillName, modifierValue });
+
     const assignedValues = currentModifiers.map((m) => m.modifierValue);
 
     await updateDoc(serverDocRef, {
@@ -1273,6 +1281,7 @@ export const finalizePlayerSkillModifiers = async (
       nextPhase = GameSetupPhase.AWAITING_GAME_START;
     }
 
+    // Explicitly widen the type of gameSetup before spreading
     const unNarrowedGameSetup: GameSetupState = gameSetup;
     const newGameSetupState: GameSetupState = {
       ...unNarrowedGameSetup,
@@ -1290,6 +1299,7 @@ export const finalizePlayerSkillModifiers = async (
   }
 };
 
+// --- Gameplay Functions ---
 export const initiateGameplaySession = async (
   serverId: string,
   gmId: string
@@ -1305,14 +1315,15 @@ export const initiateGameplaySession = async (
       throw new Error("Apenas o Mestre pode iniciar a sessão de jogo.");
     }
     if (
-      serverData.gameSetup?.currentPhase !== GameSetupPhase.AWAITING_GAME_START
+      !serverData.gameSetup ||
+      serverData.gameSetup.currentPhase !== GameSetupPhase.AWAITING_GAME_START
     ) {
       throw new Error(
         "A configuração do jogo ainda não foi concluída por todos."
       );
     }
     if (
-      !serverData.gameSetup?.playerModifierSelectionStatus ||
+      !serverData.gameSetup.playerModifierSelectionStatus ||
       !serverData.players.every(
         (p) =>
           serverData.gameSetup!.playerModifierSelectionStatus![p.userId]
@@ -1327,12 +1338,14 @@ export const initiateGameplaySession = async (
     const initialGameplayState: GameplayState = {
       playerStates: {},
       gameLog: [],
-      currentTurnPlayerId: null, // Or set to the first player if applicable
+      currentTurnPlayerId: null,
     };
 
     const characterConcepts = serverData.gameSetup.characterConcepts || [];
     const playerSkillModifiers =
       serverData.gameSetup.playerSkillModifiers || {};
+    const interferenceTokensSetup =
+      serverData.gameSetup.interferenceTokens || {};
 
     serverData.players.forEach((player) => {
       const concept = characterConcepts.find(
@@ -1342,17 +1355,18 @@ export const initiateGameplaySession = async (
 
       initialGameplayState.playerStates[player.userId] = {
         userId: player.userId,
-        characterName: concept?.concept || player.playerName, // Use concept or fallback to player name
+        characterName: concept?.concept || player.playerName,
         avatarUrl: player.avatarUrl ?? undefined,
         maxHp: 10,
         currentHp: 10,
         assignedSkills: skills,
+        interferenceTokens: interferenceTokensSetup[player.userId] || 0, // Initialize interference tokens
       };
     });
 
     initialGameplayState.gameLog.push({
       id: `${Date.now()}-systemStart`,
-      timestamp: Timestamp.now(),
+      timestamp: Timestamp.now(), // Use client-generated Firestore Timestamp
       type: "system",
       message: "A sessão de jogo foi iniciada pelo Mestre!",
     });
@@ -1360,8 +1374,6 @@ export const initiateGameplaySession = async (
     await updateDoc(serverDocRef, {
       gamePhase: GamePhase.ACTIVE,
       gameplay: initialGameplayState,
-      // "gameSetup.currentPhase": GameSetupPhase.GAMEPLAY_ACTIVE, // Or mark setup as completed
-      // gameSetup: null, // Optionally clear setup data if no longer needed
       lastActivityAt: serverTimestamp(),
     });
   } catch (error) {
@@ -1393,7 +1405,7 @@ export const rollSkillDiceForGameplay = async (
 
     const logEntry: GameLogEntry = {
       id: `${Date.now()}-${playerId}-roll`,
-      timestamp: Timestamp.now(),
+      timestamp: Timestamp.now(), // Use client-generated Firestore Timestamp
       type: "roll",
       playerId,
       playerName,
@@ -1412,6 +1424,50 @@ export const rollSkillDiceForGameplay = async (
     });
   } catch (error) {
     console.error("Error rolling skill dice for gameplay:", error);
+    throw error;
+  }
+};
+
+export const useInterferenceToken = async (
+  serverId: string,
+  playerId: string,
+  playerName: string
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  try {
+    const serverSnap = await getDoc(serverDocRef);
+    if (!serverSnap.exists()) throw new Error("Servidor não encontrado.");
+    const serverData = serverSnap.data() as GameServer;
+
+    if (!serverData.gameplay || serverData.gamePhase !== GamePhase.ACTIVE) {
+      throw new Error("O jogo não está ativo para usar um token.");
+    }
+
+    const playerState = serverData.gameplay.playerStates[playerId];
+    if (!playerState) throw new Error("Estado do jogador não encontrado.");
+
+    if (playerState.interferenceTokens <= 0) {
+      throw new Error("Você não tem tokens de interferência para usar.");
+    }
+
+    const updatedTokens = playerState.interferenceTokens - 1;
+
+    const logEntry: GameLogEntry = {
+      id: `${Date.now()}-${playerId}-token`,
+      timestamp: Timestamp.now(),
+      type: "token",
+      playerId,
+      playerName,
+      message: `${playerName} usou um Token de Interferência!`,
+    };
+
+    await updateDoc(serverDocRef, {
+      [`gameplay.playerStates.${playerId}.interferenceTokens`]: updatedTokens,
+      "gameplay.gameLog": arrayUnion(logEntry),
+      lastActivityAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error using interference token:", error);
     throw error;
   }
 };
