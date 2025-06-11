@@ -1405,7 +1405,7 @@ export const rollSkillDiceForGameplay = async (
 
     const logEntry: GameLogEntry = {
       id: `${Date.now()}-${playerId}-roll`,
-      timestamp: Timestamp.now(), // Use client-generated Firestore Timestamp
+      timestamp: Timestamp.now(),
       type: "roll",
       playerId,
       playerName,
@@ -1424,6 +1424,50 @@ export const rollSkillDiceForGameplay = async (
     });
   } catch (error) {
     console.error("Error rolling skill dice for gameplay:", error);
+    throw error;
+  }
+};
+
+export const rollGenericDiceForGameplay = async (
+  serverId: string,
+  playerId: string,
+  playerName: string
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  try {
+    const serverSnap = await getDoc(serverDocRef);
+    if (!serverSnap.exists()) throw new Error("Servidor não encontrado.");
+    const serverData = serverSnap.data() as GameServer;
+
+    if (!serverData.gameplay || serverData.gamePhase !== GamePhase.ACTIVE) {
+      throw new Error("O jogo não está ativo para realizar esta ação.");
+    }
+
+    const d1 = Math.floor(Math.random() * 6) + 1;
+    const d2 = Math.floor(Math.random() * 6) + 1;
+    const totalRoll = d1 + d2;
+
+    const logEntry: GameLogEntry = {
+      id: `${Date.now()}-${playerId}-genericRoll`,
+      timestamp: Timestamp.now(),
+      type: "generic_roll",
+      playerId,
+      playerName,
+      message: `${playerName} rolou 2d6 e obteve ${totalRoll}. (Dados: ${d1}, ${d2})`,
+      rollDetails: {
+        diceResult: [d1, d2],
+        totalRoll,
+        skillName: "Rolagem Genérica", // Optional: for consistency, though not a skill
+        modifier: 0,
+      },
+    };
+
+    await updateDoc(serverDocRef, {
+      "gameplay.gameLog": arrayUnion(logEntry),
+      lastActivityAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error rolling generic dice for gameplay:", error);
     throw error;
   }
 };

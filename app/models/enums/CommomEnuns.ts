@@ -57,3 +57,12 @@ export enum GamePhase {
   PAUSED = "paused",
   ENDED = "ended",
 }
+
+export enum GameLogEntryType {
+  ROLL = "roll",
+  CHAT = "chat",
+  INFO = "info",
+  SYSTEM = "system",
+  TOKEN = "token",
+  GENERIC_ROLL = "generic_roll", // Added for generic 2d6 rolls
+}

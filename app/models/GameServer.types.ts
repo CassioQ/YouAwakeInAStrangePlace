@@ -111,14 +111,14 @@ export interface PlayerGameplayState {
 export interface GameLogEntry {
   id: string; // Unique ID for the log entry (e.g., timestamp + random string)
   timestamp: FieldValue | Timestamp; // Allow both FieldValue for writing and Timestamp for reading
-  type: "roll" | "chat" | "info" | "system" | "token"; // Added "token" type
+  type: "roll" | "chat" | "info" | "system" | "token" | "generic_roll"; // Added "generic_roll" & "token" type
   playerId?: string; // ID of the player who performed the action or sent the message
   playerName?: string; // Name of the player
   message: string; // Main text of the log (e.g., "rolled Perception (+1) and got 12")
   rollDetails?: {
-    skillName: string;
+    skillName?: string; // Optional for generic rolls
     diceResult: [number, number]; // [d1, d2]
-    modifier: number;
+    modifier?: number; // Optional for generic rolls
     totalRoll: number;
   };
 }

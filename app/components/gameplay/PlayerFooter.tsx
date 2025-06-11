@@ -7,24 +7,27 @@ import {
   Image,
   Modal,
   FlatList,
+  ActivityIndicator,
 } from "react-native";
 import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import SkillsMenu from "./SkillsMenu";
+import InterferenceTokenModal from "./InterferenceTokenModal"; // New modal
 import {
   PlayerSkillModifierChoice,
   DefinedSkill,
   PlayerGameplayState,
 } from "../../models/GameServer.types";
 import { AppContext } from "../../contexts/AppContexts"; // To get current user for token count
-import InterferenceTokenModal from "./InterferenceTokenModal";
+import { rollGenericDiceForGameplay } from "../../services/firebaseServices";
+import { showAppAlert } from "../../utils/alertUtils";
 
 interface PlayerFooterProps {
   characterName: string;
   currentHp: number;
   maxHp: number;
   playerAssignedSkills: PlayerSkillModifierChoice[];
-  allDefinedSkills: DefinedSkill[]; // All 16 skills
+  allDefinedSkills: DefinedSkill[]; // All 16 skills (player + GM)
   avatarUrl?: string;
   serverId: string;
   playerId: string;
@@ -55,10 +58,25 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
   const [isSkillsMenuVisible, setIsSkillsMenuVisible] = useState(false);
   const [isPlayerListVisible, setIsPlayerListVisible] = useState(false);
   const [isTokenModalVisible, setIsTokenModalVisible] = useState(false);
+  const [rollingGenericDice, setRollingGenericDice] = useState(false);
 
   const hpPercentage = maxHp > 0 ? (currentHp / maxHp) * 100 : 0;
   const currentInterferenceTokens =
     context?.gameplayState?.playerStates[playerId]?.interferenceTokens ?? 0;
+
+  const handleGenericRoll = async () => {
+    setRollingGenericDice(true);
+    try {
+      await rollGenericDiceForGameplay(serverId, playerId, playerName);
+    } catch (error: any) {
+      showAppAlert(
+        "Erro ao Rolar 2d6",
+        error.message || "Não foi possível registrar a rolagem."
+      );
+    } finally {
+      setRollingGenericDice(false);
+    }
+  };
 
   return (
     <>
@@ -67,12 +85,14 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
           <TouchableOpacity
             onPress={() => setIsPlayerListVisible(true)}
             style={styles.iconButton}
+            accessibilityLabel="Ver lista de jogadores"
           >
             <Text style={styles.footerIconText}>👥</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setIsTokenModalVisible(true)}
             style={styles.iconButton}
+            accessibilityLabel="Usar token de interferência"
           >
             <Text style={styles.footerIconText}>✧</Text>
             {currentInterferenceTokens > 0 && (
@@ -81,6 +101,18 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
                   {currentInterferenceTokens}
                 </Text>
               </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleGenericRoll}
+            style={styles.iconButton}
+            disabled={rollingGenericDice}
+            accessibilityLabel="Rolar 2d6 (dois dados de seis lados)"
+          >
+            {rollingGenericDice ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.genericRollText}>2d6</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -223,10 +255,18 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 8,
     marginHorizontal: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 30, // Ensure tap area
   },
   footerIconText: {
     fontSize: 22,
     color: colors.textSecondary,
+  },
+  genericRollText: {
+    fontSize: 15,
+    color: colors.primary,
+    fontWeight: "bold",
   },
   tokenBadge: {
     position: "absolute",
