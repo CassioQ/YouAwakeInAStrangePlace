@@ -2,43 +2,36 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ActivityIndicator } from 'react-native';
 import { colors } from '../../styles/colors';
 import { commonStyles } from '../../styles/commonStyles';
-import { PlayerSkillModifierChoice, DefinedSkill } from '../../models/GameServer.types';
-import { rollSkillDiceForGameplay } from '../../services/firebaseServices';
+import { DefinedSkill } from '../../models/GameServer.types';
+import { rollGmSkillForGameplay } from '../../services/firebaseServices';
 import { showAppAlert } from '../../utils/alertUtils';
 
-interface SkillsMenuProps {
+interface GMSkillsMenuProps {
   isVisible: boolean;
   onClose: () => void;
-  playerAssignedSkills: PlayerSkillModifierChoice[]; // Player's 4 chosen skills with modifiers
-  allDefinedSkills: DefinedSkill[]; // All 16 skills (player + GM)
+  gmSkills: DefinedSkill[]; 
   serverId: string;
-  playerId: string;
-  playerName: string;
+  gmId: string;
+  gmName: string;
 }
 
-const SkillsMenu: React.FC<SkillsMenuProps> = ({ 
+const GMSkillsMenu: React.FC<GMSkillsMenuProps> = ({ 
   isVisible, 
   onClose, 
-  playerAssignedSkills,
-  allDefinedSkills,
+  gmSkills,
   serverId,
-  playerId,
-  playerName
+  gmId,
+  gmName
 }) => {
   const [rollingSkillName, setRollingSkillName] = useState<string | null>(null);
 
-  const getSkillModifier = (skillName: string): number => {
-    const foundAssignedSkill = playerAssignedSkills.find(s => s.skillName === skillName);
-    return foundAssignedSkill ? foundAssignedSkill.modifierValue : 0;
-  };
-
   const handleSkillRoll = async (skillName: string) => {
     setRollingSkillName(skillName);
-    const modifier = getSkillModifier(skillName);
     try {
-      await rollSkillDiceForGameplay(serverId, playerId, playerName, skillName, modifier);
+      await rollGmSkillForGameplay(serverId, gmId, gmName, skillName);
+      // Log entry is handled in the service, no need to alert success for each roll.
     } catch (error: any) {
-      showAppAlert("Erro ao Rolar", error.message || "Não foi possível registrar a rolagem.");
+      showAppAlert("Erro ao Rolar Habilidade do Mestre", error.message || "Não foi possível registrar a rolagem.");
     } finally {
       setRollingSkillName(null);
     }
@@ -60,33 +53,27 @@ const SkillsMenu: React.FC<SkillsMenuProps> = ({
           <View style={styles.handleBarContainer} onTouchEnd={onClose}>
             <View style={styles.handleBar} />
           </View>
-          <Text style={styles.menuTitle}>Habilidades Disponíveis</Text>
+          <Text style={styles.menuTitle}>Habilidades do Mestre</Text>
           <ScrollView contentContainerStyle={styles.skillsList}>
-            {allDefinedSkills.length === 0 && (
-              <Text style={styles.emptyText}>Nenhuma habilidade definida no jogo.</Text>
+            {gmSkills.length === 0 && (
+              <Text style={styles.emptyText}>Nenhuma habilidade de mestre definida.</Text>
             )}
-            {allDefinedSkills.map((definedSkill) => {
-              const modifier = getSkillModifier(definedSkill.skillName);
-              return (
-                <View key={definedSkill.skillName} style={styles.skillItem}>
-                  <Text style={styles.skillName}>{definedSkill.skillName}</Text>
-                  <Text style={styles.skillModifier}>
-                    ({modifier >= 0 ? '+' : ''}{modifier})
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.rollButton, commonStyles.dashedBorder]}
-                    onPress={() => handleSkillRoll(definedSkill.skillName)}
-                    disabled={rollingSkillName === definedSkill.skillName}
-                  >
-                    {rollingSkillName === definedSkill.skillName ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <Text style={styles.rollButtonText}>Rolar 2d6</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
+            {gmSkills.map((skill) => (
+              <View key={skill.skillName} style={styles.skillItem}>
+                <Text style={styles.skillName}>{skill.skillName}</Text>
+                <TouchableOpacity
+                  style={[styles.rollButton, commonStyles.dashedBorder]}
+                  onPress={() => handleSkillRoll(skill.skillName)}
+                  disabled={rollingSkillName === skill.skillName}
+                >
+                  {rollingSkillName === skill.skillName ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Text style={styles.rollButtonText}>Rolar 2d6</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ))}
           </ScrollView>
         </View>
       </TouchableOpacity>
@@ -106,7 +93,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingBottom: 30, 
-    maxHeight: '70%', 
+    maxHeight: '60%', 
   },
   handleBarContainer: {
     alignItems: 'center',
@@ -139,12 +126,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 2,
   },
-  skillModifier: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginHorizontal: 8,
-    fontWeight: '500',
-  },
   rollButton: {
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -166,4 +147,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default SkillsMenu;
+export default GMSkillsMenu;

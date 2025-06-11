@@ -64,5 +64,5 @@ export enum GameLogEntryType {
   INFO = "info",
   SYSTEM = "system",
   TOKEN = "token",
-  GENERIC_ROLL = "generic_roll", // Added for generic 2d6 rolls
+  GENERIC_ROLL = "generic_roll" // Added for generic 2d6 rolls
 }

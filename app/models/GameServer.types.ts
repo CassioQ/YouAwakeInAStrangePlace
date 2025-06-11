@@ -92,9 +92,7 @@ export interface GameSetupState {
   gmSkillsDefinedCount?: number;
 
   playerSkillModifiers?: { [playerId: string]: PlayerSkillModifierChoice[] };
-  playerModifierSelectionStatus?: {
-    [playerId: string]: PlayerModifierSelectionStatus;
-  };
+  playerModifierSelectionStatus?: { [playerId: string]: PlayerModifierSelectionStatus };
 }
 
 // Gameplay specific state
@@ -136,10 +134,10 @@ export interface GameServer {
   gmId: string;
   createdAt: FieldValue;
   players: PlayerInLobby[];
-  status: GameServerStatus;
-  gamePhase?: GamePhase;
+  status: GameServerStatus; 
+  gamePhase?: GamePhase;     
   lastActivityAt: FieldValue;
   gmLastSeenAt: FieldValue;
-  gameSetup?: GameSetupState | null;
-  gameplay?: GameplayState;
+  gameSetup?: GameSetupState | null; 
+  gameplay?: GameplayState;        
 }

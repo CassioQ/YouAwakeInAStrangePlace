@@ -15,12 +15,11 @@ import {
   GameLogEntry,
   DefinedSkill,
 } from "../../models/GameServer.types";
-import { ScreenEnum } from "../../models/enums/CommomEnuns";
+import { ScreenEnum, GameLogEntryType } from "../../models/enums/CommomEnuns";
 import { colors } from "../../styles/colors";
-import PlayerFooter from "../../components/gameplay/PlayerFooter";
-// PlayerListFAB is no longer imported directly here
+import GMFooter from "../../components/gameplay/GMFooter"; // Import GM Footer
 
-const PlayerGameplayScreen: React.FC = () => {
+const GMGameplayScreen: React.FC = () => {
   const context = useContext(AppContext);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -53,7 +52,7 @@ const PlayerGameplayScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text>
-          Erro: Dados do jogador ou servidor ausentes. Redirecionando...
+          Erro: Dados do Mestre ou servidor ausentes. Redirecionando...
         </Text>
       </SafeAreaView>
     );
@@ -67,33 +66,8 @@ const PlayerGameplayScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
-
-  const myPlayerGameplayState = gameplayState.playerStates[currentUser.uid];
+  
   const allDefinedSkills: DefinedSkill[] = activeGameSetup.definedSkills || [];
-
-  if (!myPlayerGameplayState) {
-    return (
-      <SafeAreaView style={styles.screenContainer}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>
-            Erro: Dados do seu personagem não encontrados no jogo.
-          </Text>
-        </View>
-        <PlayerFooter
-          characterName="Desconhecido"
-          currentHp={0}
-          maxHp={0}
-          playerAssignedSkills={[]}
-          allDefinedSkills={[]}
-          serverId={activeServerDetails.id}
-          playerId={currentUser.uid}
-          playerName={currentUser.displayName || "Jogador"}
-          interferenceTokens={0}
-          allPlayerStates={[]}
-        />
-      </SafeAreaView>
-    );
-  }
 
   const renderGameLog = () => {
     if (!gameplayState.gameLog || gameplayState.gameLog.length === 0) {
@@ -103,14 +77,13 @@ const PlayerGameplayScreen: React.FC = () => {
         </Text>
       );
     }
-    // No need to reverse here, new logs are added to the end, and ScrollView scrolls to end.
     return gameplayState.gameLog.map((entry: GameLogEntry) => (
       <View
         key={entry.id}
         style={[
           styles.logEntry,
-          entry.type === "system" && styles.logEntrySystem,
-          entry.type === "token" && styles.logEntryToken,
+          entry.type === GameLogEntryType.SYSTEM && styles.logEntrySystem,
+          entry.type === GameLogEntryType.TOKEN && styles.logEntryToken,
         ]}
       >
         <Text style={styles.logTimestamp}>
@@ -145,20 +118,11 @@ const PlayerGameplayScreen: React.FC = () => {
           {renderGameLog()}
         </ScrollView>
 
-        <PlayerFooter
-          characterName={myPlayerGameplayState.characterName}
-          currentHp={myPlayerGameplayState.currentHp}
-          maxHp={myPlayerGameplayState.maxHp}
-          playerAssignedSkills={myPlayerGameplayState.assignedSkills}
+        <GMFooter
           allDefinedSkills={allDefinedSkills}
           serverId={activeServerDetails.id}
-          playerId={currentUser.uid}
-          playerName={
-            currentUser.displayName ||
-            myPlayerGameplayState.characterName ||
-            "Jogador"
-          }
-          interferenceTokens={myPlayerGameplayState.interferenceTokens}
+          gmId={currentUser.uid}
+          gmName={currentUser.displayName || "Mestre"}
           allPlayerStates={Object.values(gameplayState.playerStates)}
         />
       </KeyboardAvoidingView>
@@ -191,7 +155,6 @@ const styles = StyleSheet.create({
   chatArea: {
     flex: 1,
     paddingHorizontal: 10,
-    // paddingTop: 10, // Removed, footer is fixed below
   },
   chatContentContainer: {
     paddingVertical: 10,
@@ -213,7 +176,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   logEntryToken: {
-    backgroundColor: colors.primary + "33", // Light primary
+    backgroundColor: colors.primary + "33", 
     borderColor: colors.primary,
     borderWidth: 1,
   },
@@ -232,4 +195,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PlayerGameplayScreen;
+export default GMGameplayScreen;

@@ -1,17 +1,10 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
-import { colors } from "../../styles/colors";
-import { commonStyles } from "../../styles/commonStyles";
-import StyledButton from "../StyledButton";
-import { useInterferenceToken } from "../../services/firebaseServices";
-import { showAppAlert } from "../../utils/alertUtils";
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { colors } from '../../styles/colors';
+import { commonStyles } from '../../styles/commonStyles';
+import StyledButton from '../StyledButton';
+import { useInterferenceToken } from '../../services/firebaseServices';
+import { showAppAlert } from '../../utils/alertUtils';
 
 interface InterferenceTokenModalProps {
   isVisible: boolean;
@@ -34,25 +27,16 @@ const InterferenceTokenModal: React.FC<InterferenceTokenModalProps> = ({
 
   const handleUseToken = async () => {
     if (currentTokenCount <= 0) {
-      showAppAlert(
-        "Sem Tokens",
-        "Você não possui tokens de interferência para usar."
-      );
+      showAppAlert("Sem Tokens", "Você não possui tokens de interferência para usar.");
       return;
     }
     setIsLoading(true);
     try {
       await useInterferenceToken(serverId, playerId, playerName);
-      showAppAlert(
-        "Token Usado!",
-        "Você utilizou um token de interferência na narrativa."
-      );
+      showAppAlert("Token Usado!", "Você utilizou um token de interferência na narrativa.");
       onClose(); // Close modal on success
     } catch (error: any) {
-      showAppAlert(
-        "Erro ao Usar Token",
-        error.message || "Não foi possível usar o token."
-      );
+      showAppAlert("Erro ao Usar Token", error.message || "Não foi possível usar o token.");
     } finally {
       setIsLoading(false);
     }
@@ -70,26 +54,17 @@ const InterferenceTokenModal: React.FC<InterferenceTokenModalProps> = ({
         activeOpacity={1}
         onPressOut={onClose}
       >
-        <View
-          style={[styles.modalContainer, commonStyles.shadow]}
-          onStartShouldSetResponder={() => true}
-        >
+        <View style={[styles.modalContainer, commonStyles.shadow]} onStartShouldSetResponder={() => true}>
           <Text style={styles.modalTitle}>Tokens de Interferência</Text>
-          <Text style={styles.tokenCountText}>
-            Você possui: {currentTokenCount} token(s)
-          </Text>
-
+          <Text style={styles.tokenCountText}>Você possui: {currentTokenCount} token(s)</Text>
+          
           <StyledButton
             onPress={handleUseToken}
             disabled={isLoading || currentTokenCount <= 0}
             props_variant="primary"
             style={styles.actionButton}
           >
-            {isLoading ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              "Utilizar Token"
-            )}
+            {isLoading ? <ActivityIndicator color={colors.white} /> : "Utilizar Token"}
           </StyledButton>
 
           <StyledButton
@@ -112,24 +87,24 @@ const InterferenceTokenModal: React.FC<InterferenceTokenModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContainer: {
     backgroundColor: colors.backgroundPaper,
     borderRadius: 10,
     padding: 20,
-    width: "85%",
+    width: '85%',
     maxWidth: 350,
-    alignItems: "center",
+    alignItems: 'center',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 15,
-    textAlign: "center",
+    textAlign: 'center',
   },
   tokenCountText: {
     fontSize: 16,
@@ -137,7 +112,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   actionButton: {
-    width: "100%",
+    width: '100%',
     marginBottom: 12,
   },
   disabledButton: {
@@ -151,8 +126,8 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: colors.primary,
     fontSize: 16,
-    fontWeight: "500",
-  },
+    fontWeight: '500',
+  }
 });
 
 export default InterferenceTokenModal;

@@ -1,11 +1,11 @@
 import { Character, Skill } from "./Character.types";
 import { ScreenEnum, UserRole } from "./enums/CommomEnuns";
-import { User as FirebaseUser } from "firebase/auth";
+import type firebase from "firebase/compat/app"; // Import compat type
 import { GameServer, PlayerInLobby, GameSetupState, GameplayState } from "./GameServer.types"; // Added GameplayState
 import { UserProfile } from "./UserProfile.types";
 
 export interface AppContextType {
-  currentUser: FirebaseUser | null;
+  currentUser: firebase.User | null; // Use compat User type
   isLoadingAuth: boolean;
   userProfile: UserProfile | null;
 
@@ -37,8 +37,8 @@ export interface AppContextType {
 
 
   // Auth functions
-  loginWithGoogle: () => Promise<FirebaseUser | null>;
-  loginWithFacebook: () => Promise<FirebaseUser | null>;
+  loginWithGoogle: () => Promise<firebase.User | null>; // Use compat User type
+  loginWithFacebook: () => Promise<firebase.User | null>; // Use compat User type
   logout: () => Promise<void>;
 
   // Session resumption related
