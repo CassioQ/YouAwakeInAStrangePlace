@@ -1,31 +1,46 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, FlatList, ActivityIndicator } from 'react-native';
-import { colors } from '../../styles/colors';
-import { commonStyles } from '../../styles/commonStyles';
-import SkillsMenu from './SkillsMenu';
-import InterferenceTokenModal from './InterferenceTokenModal'; // New modal
-import { PlayerSkillModifierChoice, DefinedSkill, PlayerGameplayState } from '../../models/GameServer.types';
-import { AppContext } from '../../contexts/AppContexts'; // To get current user for token count
-import { rollGenericDiceForGameplay } from '../../services/firebaseServices'; 
-import { showAppAlert } from '../../utils/alertUtils';
-
+import React, { useState, useContext } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Modal,
+  FlatList,
+  ActivityIndicator,
+} from "react-native";
+import { colors } from "../../styles/colors";
+import { commonStyles } from "../../styles/commonStyles";
+import SkillsMenu from "./SkillsMenu";
+import InterferenceTokenModal from "./InterferenceTokenModal";
+import {
+  PlayerSkillModifierChoice,
+  DefinedSkill,
+  PlayerGameplayState,
+} from "../../models/GameServer.types";
+import { AppContext } from "../../contexts/AppContexts";
+import { rollGenericDiceForGameplay } from "../../services/firebaseServices";
+import { showAppAlert } from "../../utils/alertUtils";
+import PlayerHpEditModal from "./PlayerHpEditModal";
 
 interface PlayerFooterProps {
   characterName: string;
   currentHp: number;
   maxHp: number;
   playerAssignedSkills: PlayerSkillModifierChoice[];
-  allDefinedSkills: DefinedSkill[]; // All 16 skills (player + GM)
+  allDefinedSkills: DefinedSkill[];
   avatarUrl?: string;
   serverId: string;
   playerId: string;
   playerName: string;
-  interferenceTokens: number;
-  allPlayerStates: PlayerGameplayState[]; // For player list
+  interferenceTokens: number; // This prop might be redundant if using context
+  allPlayerStates: PlayerGameplayState[];
 }
 
-const defaultAvatar = "https://ui-avatars.com/api/?name=P&background=random&size=40";
-const defaultPlayerAvatar = "https://ui-avatars.com/api/?name=J&background=random&size=30";
+const defaultAvatar =
+  "https://ui-avatars.com/api/?name=P&background=random&size=40";
+const defaultPlayerAvatar =
+  "https://ui-avatars.com/api/?name=J&background=random&size=30";
 
 const PlayerFooter: React.FC<PlayerFooterProps> = ({
   characterName,
@@ -37,80 +52,132 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
   serverId,
   playerId,
   playerName,
-  interferenceTokens,
+  // interferenceTokens, // This can be fetched from context now
   allPlayerStates,
 }) => {
   const context = useContext(AppContext);
   const [isSkillsMenuVisible, setIsSkillsMenuVisible] = useState(false);
   const [isPlayerListVisible, setIsPlayerListVisible] = useState(false);
   const [isTokenModalVisible, setIsTokenModalVisible] = useState(false);
+  const [isHpEditModalVisible, setIsHpEditModalVisible] = useState(false); // State for HP edit modal
   const [rollingGenericDice, setRollingGenericDice] = useState(false);
 
-  const hpPercentage = maxHp > 0 ? (currentHp / maxHp) * 100 : 0;
-  const currentInterferenceTokens = context?.gameplayState?.playerStates[playerId]?.interferenceTokens ?? 0;
+  const myPlayerState = context?.gameplayState?.playerStates[playerId];
+  const currentInterferenceTokens = myPlayerState?.interferenceTokens ?? 0;
+  const actualCurrentHp = myPlayerState?.currentHp ?? currentHp;
+  const actualMaxHp = myPlayerState?.maxHp ?? maxHp;
 
   const handleGenericRoll = async () => {
     setRollingGenericDice(true);
     try {
       await rollGenericDiceForGameplay(serverId, playerId, playerName);
     } catch (error: any) {
-      showAppAlert("Erro ao Rolar 2d6", error.message || "Não foi possível registrar a rolagem.");
+      showAppAlert(
+        "Erro ao Rolar 2d6",
+        error.message || "Não foi possível registrar a rolagem."
+      );
     } finally {
       setRollingGenericDice(false);
     }
   };
 
+  const normalHpPercentage =
+    actualMaxHp > 0 ? Math.min(100, (actualCurrentHp / actualMaxHp) * 100) : 0;
+  const bonusHpPercentage =
+    actualCurrentHp > actualMaxHp
+      ? ((actualCurrentHp - actualMaxHp) / actualMaxHp) * 100
+      : 0;
 
   return (
     <>
       <View style={[styles.footerContainer, commonStyles.shadow]}>
         <View style={styles.leftSection}>
-            <TouchableOpacity onPress={() => setIsPlayerListVisible(true)} style={styles.iconButton} accessibilityLabel="Ver lista de jogadores">
-                 <Text style={styles.footerIconText}>👥</Text>
-            </TouchableOpacity>
-             <TouchableOpacity onPress={() => setIsTokenModalVisible(true)} style={styles.iconButton} accessibilityLabel="Usar token de interferência">
-                <Text style={styles.footerIconText}>✧</Text>
-                {currentInterferenceTokens > 0 && (
-                    <View style={styles.tokenBadge}>
-                        <Text style={styles.tokenBadgeText}>{currentInterferenceTokens}</Text>
-                    </View>
-                )}
-            </TouchableOpacity>
-             <TouchableOpacity 
-                onPress={handleGenericRoll} 
-                style={styles.iconButton}
-                disabled={rollingGenericDice}
-                accessibilityLabel="Rolar 2d6 (dois dados de seis lados)"
-             >
-                {rollingGenericDice ? 
-                    <ActivityIndicator size="small" color={colors.primary} /> : 
-                    <Text style={styles.genericRollText}>2d6</Text>
-                }
-            </TouchableOpacity>
-        </View>
-        
-        <View style={styles.centerSection}>
-            <Image 
-                source={{ uri: avatarUrl || defaultAvatar.replace("name=P", `name=${encodeURIComponent(characterName[0]) || 'P'}`) }} 
-                style={styles.avatar} 
-            />
-            <View style={styles.infoContainer}>
-                <Text style={styles.characterName} numberOfLines={1}>{characterName}</Text>
-                <View style={styles.hpBarContainer}>
-                    <View style={[styles.hpBarFill, { width: `${hpPercentage}%` }]} />
-                    <Text style={styles.hpText}>{`${currentHp} / ${maxHp} HP`}</Text>
-                </View>
-            </View>
+          <TouchableOpacity
+            onPress={() => setIsPlayerListVisible(true)}
+            style={styles.iconButton}
+            accessibilityLabel="Ver lista de jogadores"
+          >
+            <Text style={styles.footerIconText}>👥</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setIsTokenModalVisible(true)}
+            style={styles.iconButton}
+            accessibilityLabel="Usar token de interferência"
+          >
+            <Text style={styles.footerIconText}>✧</Text>
+            {currentInterferenceTokens > 0 && (
+              <View style={styles.tokenBadge}>
+                <Text style={styles.tokenBadgeText}>
+                  {currentInterferenceTokens}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleGenericRoll}
+            style={styles.iconButton}
+            disabled={rollingGenericDice}
+            accessibilityLabel="Rolar 2d6 (dois dados de seis lados)"
+          >
+            {rollingGenericDice ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.genericRollText}>2d6</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.centerSection}
+          onPress={() => setIsHpEditModalVisible(true)}
+          accessibilityLabel="Editar Pontos de Vida"
+        >
+          <Image
+            source={{
+              uri:
+                avatarUrl ||
+                defaultAvatar.replace(
+                  "name=P",
+                  `name=${encodeURIComponent(characterName[0]) || "P"}`
+                ),
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.infoContainer}>
+            <Text style={styles.characterName} numberOfLines={1}>
+              {characterName}
+            </Text>
+            <View style={styles.hpBarOuter}>
+              <View style={styles.hpBarBackground} />
+              <View
+                style={[
+                  styles.hpBarFillNormal,
+                  { width: `${normalHpPercentage}%` },
+                ]}
+              />
+              {actualCurrentHp > actualMaxHp && (
+                <View
+                  style={[
+                    styles.hpBarFillBonus,
+                    { width: `${bonusHpPercentage}%` },
+                  ]}
+                />
+              )}
+              <Text
+                style={styles.hpTextValue}
+              >{`${actualCurrentHp} / ${actualMaxHp} HP`}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         <View style={styles.rightSection}>
-            <TouchableOpacity 
-                style={styles.skillsButtonMain} 
-                onPress={() => setIsSkillsMenuVisible(true)}
-                accessibilityLabel="Abrir menu de habilidades"
-            >
-                <Text style={styles.skillsButtonText}>SKILLS</Text> 
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.skillsButtonMain}
+            onPress={() => setIsSkillsMenuVisible(true)}
+            accessibilityLabel="Abrir menu de habilidades"
+          >
+            <Text style={styles.skillsButtonText}>SKILLS</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -133,6 +200,18 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
         currentTokenCount={currentInterferenceTokens}
       />
 
+      <PlayerHpEditModal
+        isVisible={isHpEditModalVisible}
+        onClose={() => setIsHpEditModalVisible(false)}
+        characterName={characterName}
+        currentHp={actualCurrentHp}
+        maxHp={actualMaxHp}
+        avatarUrl={avatarUrl}
+        serverId={serverId}
+        playerId={playerId}
+        playerName={playerName}
+      />
+
       <Modal
         animationType="fade"
         transparent={true}
@@ -145,26 +224,42 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
           onPressOut={() => setIsPlayerListVisible(false)}
         >
           <View style={[styles.playerListModalContainer, commonStyles.shadow]}>
-            <Text style={styles.playerListTitle}>Jogadores na Sessão ({allPlayerStates.length})</Text>
+            <Text style={styles.playerListTitle}>
+              Jogadores na Sessão ({allPlayerStates.length})
+            </Text>
             <FlatList
               data={allPlayerStates}
               keyExtractor={(item) => item.userId}
               renderItem={({ item }) => (
                 <View style={styles.playerItem}>
-                  <Image 
-                    source={{ uri: item.avatarUrl || defaultPlayerAvatar.replace("name=J", `name=${encodeURIComponent(item.characterName[0]) || 'J'}`) }} 
+                  <Image
+                    source={{
+                      uri:
+                        item.avatarUrl ||
+                        defaultPlayerAvatar.replace(
+                          "name=J",
+                          `name=${encodeURIComponent(item.characterName[0]) || "J"}`
+                        ),
+                    }}
                     style={styles.playerAvatar}
                   />
                   <View>
-                    <Text style={styles.modalPlayerName}>{item.characterName}</Text>
-                    <Text style={styles.modalPlayerHp}>HP: {item.currentHp}/{item.maxHp}</Text>
+                    <Text style={styles.modalPlayerName}>
+                      {item.characterName}
+                    </Text>
+                    <Text style={styles.modalPlayerHp}>
+                      HP: {item.currentHp}/{item.maxHp}
+                    </Text>
                   </View>
                 </View>
               )}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
             />
-             <TouchableOpacity style={styles.closeButton} onPress={() => setIsPlayerListVisible(false)}>
-                <Text style={styles.closeButtonText}>Fechar</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setIsPlayerListVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -175,36 +270,36 @@ const PlayerFooter: React.FC<PlayerFooterProps> = ({
 
 const styles = StyleSheet.create({
   footerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: colors.backgroundPaper,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
-    minHeight: 65, 
+    minHeight: 65,
   },
   leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   centerSection: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 5,
   },
   rightSection: {
-     // alignItems: 'flex-end',
+    // alignItems: 'flex-end',
   },
   iconButton: {
     padding: 8,
     marginHorizontal: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 30, // Ensure tap area
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 30,
   },
   footerIconText: {
     fontSize: 22,
@@ -213,23 +308,23 @@ const styles = StyleSheet.create({
   genericRollText: {
     fontSize: 15,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   tokenBadge: {
-    position: 'absolute',
+    position: "absolute",
     right: 0,
     top: 0,
     backgroundColor: colors.error,
     borderRadius: 8,
     width: 16,
     height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   tokenBadgeText: {
     color: colors.white,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   avatar: {
     width: 40,
@@ -239,34 +334,54 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   infoContainer: {
-    flex: 1, // Takes remaining space in center section
-    justifyContent: 'center',
+    flex: 1,
+    justifyContent: "center",
   },
   characterName: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.textPrimary,
     marginBottom: 2,
   },
-  hpBarContainer: {
+  hpBarOuter: {
+    // Renamed from hpBarContainer for clarity within PlayerFooter
     height: 16,
-    backgroundColor: colors.stone300,
     borderRadius: 8,
-    overflow: 'hidden',
-    justifyContent: 'center',
+    backgroundColor: colors.hpBackground,
+    width: "100%", // Ensure it takes the width of its parent (infoContainer)
+    position: "relative",
+    overflow: "hidden",
   },
-  hpBarFill: {
-    height: '100%',
-    backgroundColor: colors.success,
+  hpBarBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.hpBackground,
     borderRadius: 8,
   },
-  hpText: {
-    position: 'absolute',
-    alignSelf: 'center',
+  hpBarFillNormal: {
+    height: "100%",
+    backgroundColor: colors.hpDefaultFill,
+    borderRadius: 8,
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+  hpBarFillBonus: {
+    height: "100%",
+    backgroundColor: colors.bonusHp,
+    borderRadius: 8,
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+  hpTextValue: {
+    // Renamed from hpText for clarity
+    position: "absolute",
+    alignSelf: "center",
+    lineHeight: 16, // Match bar height
     fontSize: 9,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.white,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
@@ -274,40 +389,39 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 20, // Pill shape
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
     ...commonStyles.shadow,
   },
   skillsButtonText: {
     color: colors.primaryContrast,
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
-  // Player List Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   playerListModalContainer: {
     backgroundColor: colors.backgroundPaper,
     borderRadius: 10,
     padding: 15,
-    width: '85%',
-    maxHeight: '70%',
+    width: "85%",
+    maxHeight: "70%",
   },
   playerListTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.textPrimary,
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   playerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 8,
   },
   playerAvatar: {
@@ -320,7 +434,7 @@ const styles = StyleSheet.create({
   modalPlayerName: {
     fontSize: 15,
     color: colors.textPrimary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   modalPlayerHp: {
     fontSize: 12,
@@ -335,12 +449,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: colors.secondary,
     borderRadius: 6,
-    alignItems: 'center',
+    alignItems: "center",
   },
   closeButtonText: {
     color: colors.secondaryContrast,
-    fontWeight: '500',
-  }
+    fontWeight: "500",
+  },
 });
 
 export default PlayerFooter;

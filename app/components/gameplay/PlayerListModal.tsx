@@ -14,8 +14,8 @@ import {
   PlayerGameplayState,
   PlayerSkillModifierChoice,
 } from "../../models/GameServer.types";
-import GMPlayerControlModal from "./GMPlayerControlModal";
 import { AppContext } from "../../contexts/AppContexts";
+import { GMPlayerControlModal } from "./GMPlayerControlModal";
 
 interface PlayerListModalProps {
   isVisible: boolean;

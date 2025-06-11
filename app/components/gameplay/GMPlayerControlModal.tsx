@@ -24,7 +24,7 @@ import { showAppAlert } from "../../utils/alertUtils";
 interface GMPlayerControlModalProps {
   isVisible: boolean;
   onClose: () => void;
-  selectedPlayer: PlayerGameplayState | null;
+  selectedPlayer: PlayerGameplayState | null; // This is the initial player data when modal opens
   serverId: string;
   gmName: string;
 }
@@ -32,37 +32,65 @@ interface GMPlayerControlModalProps {
 const defaultAvatar =
   "https://ui-avatars.com/api/?name=P&background=random&size=50";
 
-const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
+export const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
   isVisible,
   onClose,
-  selectedPlayer,
+  selectedPlayer, // Initial data
   serverId,
   gmName,
 }) => {
+  const context = useContext(AppContext);
+
+  // Local state for input fields
   const [localCurrentHp, setLocalCurrentHp] = useState<string>("");
   const [localInterferenceTokens, setLocalInterferenceTokens] =
     useState<number>(0);
-  // localIsIncapacitated is derived directly from selectedPlayer.isIncapacitated for the toggle
 
   const [isLoadingHp, setIsLoadingHp] = useState(false);
   const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [isLoadingIncapacitated, setIsLoadingIncapacitated] = useState(false);
 
-  const context = useContext(AppContext);
+  // Derive live player data from context for display purposes
+  const livePlayerState =
+    selectedPlayer && context?.gameplayState?.playerStates
+      ? context.gameplayState.playerStates[selectedPlayer.userId]
+      : selectedPlayer; // Fallback to the prop if live data isn't immediately available or player not found
 
   useEffect(() => {
+    // Initialize input fields from the selectedPlayer prop when the modal opens or the prop changes
     if (selectedPlayer) {
       setLocalCurrentHp(String(selectedPlayer.currentHp));
       setLocalInterferenceTokens(selectedPlayer.interferenceTokens);
     } else {
+      // Reset if selectedPlayer becomes null (e.g., modal closed and re-opened without a selection)
       setLocalCurrentHp("");
       setLocalInterferenceTokens(0);
     }
-  }, [selectedPlayer, isVisible]);
+  }, [selectedPlayer, isVisible]); // Re-initialize if selectedPlayer prop changes or modal visibility changes
 
-  if (!selectedPlayer) return null;
+  // If there's no live data (e.g. player removed, or initial load issue), don't render content
+  if (!livePlayerState) {
+    // Optionally, show a loading or error state if selectedPlayer was initially provided
+    // but livePlayerState can't be found. For now, returning null is simplest.
+    if (isVisible && selectedPlayer) {
+      return (
+        <Modal transparent={true} visible={isVisible} onRequestClose={onClose}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, commonStyles.shadow]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={{ marginTop: 10, color: colors.textSecondary }}>
+                Carregando dados do jogador...
+              </Text>
+            </View>
+          </View>
+        </Modal>
+      );
+    }
+    return null;
+  }
 
   const handleSaveHp = async () => {
+    if (!selectedPlayer) return; // Guard against selectedPlayer being null
     const newHp = parseInt(localCurrentHp, 10);
     if (isNaN(newHp)) {
       showAppAlert("Erro", "Valor de HP inválido.");
@@ -75,13 +103,12 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
         selectedPlayer.userId,
         newHp,
         gmName,
-        selectedPlayer.characterName
+        livePlayerState.characterName
       );
       showAppAlert(
         "Sucesso",
-        `HP de ${selectedPlayer.characterName} atualizado para ${newHp}.`
+        `HP de ${livePlayerState.characterName} atualizado para ${newHp}.`
       );
-      // The modal will reflect the change once Firestore updates propagate
     } catch (error: any) {
       showAppAlert("Erro ao Atualizar HP", error.message);
     } finally {
@@ -95,6 +122,7 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
     setLocalInterferenceTokens((prev) => Math.max(0, prev - 1));
 
   const handleSaveTokens = async () => {
+    if (!selectedPlayer) return;
     setIsLoadingTokens(true);
     try {
       await updatePlayerInterferenceTokensGM(
@@ -102,11 +130,11 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
         selectedPlayer.userId,
         localInterferenceTokens,
         gmName,
-        selectedPlayer.characterName
+        livePlayerState.characterName
       );
       showAppAlert(
         "Sucesso",
-        `Tokens de ${selectedPlayer.characterName} atualizados para ${localInterferenceTokens}.`
+        `Tokens de ${livePlayerState.characterName} atualizados para ${localInterferenceTokens}.`
       );
     } catch (error: any) {
       showAppAlert("Erro ao Atualizar Tokens", error.message);
@@ -116,18 +144,20 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
   };
 
   const handleToggleIncapacitated = async () => {
+    if (!selectedPlayer) return;
     setIsLoadingIncapacitated(true);
     try {
+      // Use livePlayerState.isIncapacitated to determine the *new* state
       await updatePlayerIncapacitatedStatusGM(
         serverId,
         selectedPlayer.userId,
-        !selectedPlayer.isIncapacitated,
+        !livePlayerState.isIncapacitated,
         gmName,
-        selectedPlayer.characterName
+        livePlayerState.characterName
       );
       showAppAlert(
         "Sucesso",
-        `Status de ${selectedPlayer.characterName} atualizado.`
+        `Status de ${livePlayerState.characterName} atualizado.`
       );
     } catch (error: any) {
       showAppAlert("Erro ao Atualizar Status", error.message);
@@ -137,11 +167,13 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
   };
 
   const normalHpPercentage =
-    Math.min(1, selectedPlayer.currentHp / selectedPlayer.maxHp) * 100;
+    livePlayerState.maxHp > 0
+      ? Math.min(100, (livePlayerState.currentHp / livePlayerState.maxHp) * 100)
+      : 0;
   const bonusHpPercentage =
-    selectedPlayer.currentHp > selectedPlayer.maxHp
-      ? ((selectedPlayer.currentHp - selectedPlayer.maxHp) /
-          selectedPlayer.maxHp) *
+    livePlayerState.currentHp > livePlayerState.maxHp
+      ? ((livePlayerState.currentHp - livePlayerState.maxHp) /
+          livePlayerState.maxHp) *
         100
       : 0;
 
@@ -165,16 +197,16 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
             <Image
               source={{
                 uri:
-                  selectedPlayer.avatarUrl ||
+                  livePlayerState.avatarUrl ||
                   defaultAvatar.replace(
                     "name=P",
-                    `name=${encodeURIComponent(selectedPlayer.characterName[0]) || "P"}`
+                    `name=${encodeURIComponent(livePlayerState.characterName[0]) || "P"}`
                   ),
               }}
               style={styles.avatar}
             />
             <Text style={styles.modalTitle}>
-              {selectedPlayer.characterName}
+              {livePlayerState.characterName}
             </Text>
           </View>
 
@@ -186,21 +218,19 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
               <View
                 style={[
                   styles.hpBarFillNormal,
-                  { width: `${Math.min(100, normalHpPercentage)}%` },
+                  { width: `${normalHpPercentage}%` },
                 ]}
               />
-              {selectedPlayer.currentHp > selectedPlayer.maxHp && (
+              {livePlayerState.currentHp > livePlayerState.maxHp && (
                 <View
                   style={[
                     styles.hpBarFillBonus,
-                    // This bonus bar overlays the start of the normal bar
-                    // Its width represents the amount *over* maxHp
-                    { width: `${Math.min(100, bonusHpPercentage)}%` },
+                    { width: `${bonusHpPercentage}%` },
                   ]}
                 />
               )}
               <Text style={styles.hpTextValue}>
-                {selectedPlayer.currentHp} / {selectedPlayer.maxHp}
+                {livePlayerState.currentHp} / {livePlayerState.maxHp}
               </Text>
             </View>
 
@@ -227,7 +257,9 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
 
           {/* Interference Tokens */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tokens de Interferência</Text>
+            <Text style={styles.sectionTitle}>
+              Tokens de Interferência: {livePlayerState.interferenceTokens}
+            </Text>
             <View style={styles.tokenControl}>
               <TouchableOpacity
                 onPress={handleDecrementToken}
@@ -264,27 +296,27 @@ const GMPlayerControlModal: React.FC<GMPlayerControlModalProps> = ({
               onPress={handleToggleIncapacitated}
               disabled={isLoadingIncapacitated}
               props_variant={
-                selectedPlayer.isIncapacitated ? "secondary" : "primary"
+                livePlayerState.isIncapacitated ? "secondary" : "primary"
               }
               style={
-                selectedPlayer.isIncapacitated
+                livePlayerState.isIncapacitated
                   ? { backgroundColor: colors.error }
                   : {}
               }
               textStyle={
-                selectedPlayer.isIncapacitated ? { color: colors.white } : {}
+                livePlayerState.isIncapacitated ? { color: colors.white } : {}
               }
               size="small"
             >
               {isLoadingIncapacitated ? (
                 <ActivityIndicator color={colors.white} size="small" />
-              ) : selectedPlayer.isIncapacitated ? (
+              ) : livePlayerState.isIncapacitated ? (
                 "Remover Incapacitação"
               ) : (
                 "Marcar Incapacitado"
               )}
             </StyledButton>
-            {selectedPlayer.isIncapacitated && (
+            {livePlayerState.isIncapacitated && (
               <Text style={styles.incapacitatedText}>
                 Jogador está incapacitado.
               </Text>
@@ -352,39 +384,37 @@ const styles = StyleSheet.create({
   hpBarOuter: {
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.hpBackground, // Use new color
+    backgroundColor: colors.hpBackground,
     width: "100%",
     marginBottom: 10,
-    position: "relative", // For absolute positioning of text
-    overflow: "hidden", // Ensures bonus bar doesn't make container visually larger
+    position: "relative",
+    overflow: "hidden",
   },
   hpBarBackground: {
-    // This is the track
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.hpBackground, // e.g., a light grey
+    backgroundColor: colors.hpBackground,
     borderRadius: 10,
   },
   hpBarFillNormal: {
     height: "100%",
-    backgroundColor: colors.hpDefaultFill, // e.g., green
+    backgroundColor: colors.hpDefaultFill,
     borderRadius: 10,
     position: "absolute",
     left: 0,
     top: 0,
   },
   hpBarFillBonus: {
-    // This overlays the start of the normal fill
     height: "100%",
-    backgroundColor: colors.bonusHp, // e.g., blue or gold
+    backgroundColor: colors.bonusHp,
     borderRadius: 10,
     position: "absolute",
-    left: 0, // Starts from the beginning, overlays normal fill
+    left: 0,
     top: 0,
   },
   hpTextValue: {
     position: "absolute",
     alignSelf: "center",
-    lineHeight: 20, // Match bar height
+    lineHeight: 20,
     fontSize: 12,
     fontWeight: "bold",
     color: colors.white,
@@ -439,5 +469,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
-export default GMPlayerControlModal;

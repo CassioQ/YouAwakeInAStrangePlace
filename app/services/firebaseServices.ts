@@ -1357,7 +1357,7 @@ export const initiateGameplaySession = async (
         currentHp: 10,
         assignedSkills: skills,
         interferenceTokens: interferenceTokensSetup[player.userId] || 0,
-        isIncapacitated: false, // Initialize isIncapacitated
+        isIncapacitated: false,
       };
     });
 
@@ -1400,7 +1400,9 @@ export const rollSkillDiceForGameplay = async (
     const d2 = Math.floor(Math.random() * 6) + 1;
     const totalRoll = d1 + d2 + modifier;
 
-    const logEntry: GameLogEntry = {
+    const logEntries: GameLogEntry[] = [];
+
+    logEntries.push({
       id: `${Date.now()}-${playerId}-roll`,
       timestamp: Timestamp.now(),
       type: GameLogEntryType.ROLL,
@@ -1413,12 +1415,34 @@ export const rollSkillDiceForGameplay = async (
         modifier,
         totalRoll,
       },
+    });
+
+    const updates: any = {
+      "gameplay.gameLog": arrayUnion(...logEntries), // Spread log entries
+      lastActivityAt: serverTimestamp(),
     };
 
-    await updateDoc(serverDocRef, {
-      "gameplay.gameLog": arrayUnion(logEntry),
-      lastActivityAt: serverTimestamp(),
-    });
+    if (d1 === 6 && d2 === 6) {
+      const currentTokens =
+        serverData.gameplay.playerStates[playerId]?.interferenceTokens || 0;
+      updates[`gameplay.playerStates.${playerId}.interferenceTokens`] =
+        currentTokens + 1;
+
+      logEntries.push({
+        id: `${Date.now()}-${playerId}-boxcarsToken`,
+        timestamp: Timestamp.now(),
+        type: GameLogEntryType.TOKEN,
+        playerId,
+        playerName,
+        message: `${playerName} tirou 6-6 e ganhou 1 Token de Interferência!`,
+      });
+      // Update again with the token log entry, ensuring arrayUnion gets both.
+      // Or, prepare all updates and log entries before a single updateDoc call.
+      // For simplicity here, let's ensure all logs are added:
+      updates["gameplay.gameLog"] = arrayUnion(...logEntries);
+    }
+
+    await updateDoc(serverDocRef, updates);
   } catch (error) {
     console.error("Error rolling skill dice for gameplay:", error);
     throw error;
@@ -1444,7 +1468,9 @@ export const rollGenericDiceForGameplay = async (
     const d2 = Math.floor(Math.random() * 6) + 1;
     const totalRoll = d1 + d2;
 
-    const logEntry: GameLogEntry = {
+    const logEntries: GameLogEntry[] = [];
+
+    logEntries.push({
       id: `${Date.now()}-${playerId}-genericRoll`,
       timestamp: Timestamp.now(),
       type: GameLogEntryType.GENERIC_ROLL,
@@ -1457,12 +1483,31 @@ export const rollGenericDiceForGameplay = async (
         skillName: "Rolagem Genérica",
         modifier: 0,
       },
+    });
+
+    const updates: any = {
+      "gameplay.gameLog": arrayUnion(...logEntries),
+      lastActivityAt: serverTimestamp(),
     };
 
-    await updateDoc(serverDocRef, {
-      "gameplay.gameLog": arrayUnion(logEntry),
-      lastActivityAt: serverTimestamp(),
-    });
+    if (d1 === 6 && d2 === 6) {
+      const currentTokens =
+        serverData.gameplay.playerStates[playerId]?.interferenceTokens || 0;
+      updates[`gameplay.playerStates.${playerId}.interferenceTokens`] =
+        currentTokens + 1;
+
+      logEntries.push({
+        id: `${Date.now()}-${playerId}-boxcarsTokenGeneric`,
+        timestamp: Timestamp.now(),
+        type: GameLogEntryType.TOKEN,
+        playerId,
+        playerName,
+        message: `${playerName} tirou 6-6 em uma rolagem genérica e ganhou 1 Token de Interferência!`,
+      });
+      updates["gameplay.gameLog"] = arrayUnion(...logEntries);
+    }
+
+    await updateDoc(serverDocRef, updates);
   } catch (error) {
     console.error("Error rolling generic dice for gameplay:", error);
     throw error;
@@ -1487,7 +1532,7 @@ export const rollGmSkillForGameplay = async (
 
     const d1 = Math.floor(Math.random() * 6) + 1;
     const d2 = Math.floor(Math.random() * 6) + 1;
-    const totalRoll = d1 + d2; // GM skills have no modifier
+    const totalRoll = d1 + d2;
 
     const logEntry: GameLogEntry = {
       id: `${Date.now()}-${gmId}-gmRoll`,
@@ -1558,7 +1603,6 @@ export const useInterferenceToken = async (
   }
 };
 
-// GM Player Control Functions
 export const updatePlayerCurrentHpGM = async (
   serverId: string,
   targetPlayerId: string,
@@ -1583,6 +1627,33 @@ export const updatePlayerCurrentHpGM = async (
   } catch (error) {
     console.error("Error updating player HP by GM:", error);
     throw new Error("Falha ao atualizar HP do jogador.");
+  }
+};
+
+export const updatePlayerCurrentHpSelf = async (
+  serverId: string,
+  playerId: string,
+  newHp: number,
+  playerName: string
+): Promise<void> => {
+  const serverDocRef = doc(db, "gameServers", serverId);
+  try {
+    const logEntry: GameLogEntry = {
+      id: `${Date.now()}-playerHpUpdate`,
+      timestamp: Timestamp.now(),
+      type: GameLogEntryType.SYSTEM,
+      playerId: playerId,
+      playerName: playerName,
+      message: `${playerName} atualizou seus Pontos de Vida para ${newHp}.`,
+    };
+    await updateDoc(serverDocRef, {
+      [`gameplay.playerStates.${playerId}.currentHp`]: newHp,
+      "gameplay.gameLog": arrayUnion(logEntry),
+      lastActivityAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error updating player HP by self:", error);
+    throw new Error("Falha ao atualizar seus Pontos de Vida.");
   }
 };
 
