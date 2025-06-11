@@ -1,21 +1,9 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import type { FirebaseApp } from "firebase/app";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  signInWithPopup, // Kept for reference, but won't be used for native
-  signInWithCredential,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  type User,
-} from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import "firebase/compat/firestore";
+import "firebase/compat/functions";
+import type { FirebaseApp } from "firebase/app"; // This type import can remain from modular
 
 import {
   FB_API_KEY,
@@ -43,36 +31,75 @@ const firebaseConfig = {
   databaseURL: FB_DATABASE_URL,
 };
 
-const app: FirebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-const functionsInstance = getFunctions(app); // Specify region if necessary e.g. getFunctions(app, "us-central1")
+let app: firebase.app.App;
+if (!firebase.apps.length) {
+  app = firebase.initializeApp(firebaseConfig);
+} else {
+  app = firebase.app(); // if already initialized, use that one
+}
 
-// Export auth providers and functions
-export {
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  signInWithPopup, // Kept for reference
-  signInWithCredential, // Exported
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  type User, // Export as type
+export const auth: firebase.auth.Auth = firebase.auth(app); // Pass app instance for multi-app safety
+export const db: firebase.firestore.Firestore = firebase.firestore(app); // Pass app instance
+const functionsInstance: firebase.functions.Functions = firebase.functions(app); // Pass app instance
+
+// Export auth providers and functions (compat style)
+export const GoogleAuthProvider = firebase.auth.GoogleAuthProvider;
+export const FacebookAuthProvider = firebase.auth.FacebookAuthProvider;
+
+// Wrapped methods to ensure 'this' context for auth if imported and called directly.
+export const signInWithPopup = (
+  provider: firebase.auth.AuthProvider
+): Promise<firebase.auth.UserCredential> => {
+  return auth.signInWithPopup(provider);
 };
 
-// Exemplo de como preparar uma função callable
-export const callCreateGameSession = httpsCallable(
-  functionsInstance,
-  "createGameSession"
-);
-export const callJoinGameSession = httpsCallable(
-  functionsInstance,
-  "joinGameSession"
-);
-export const callProcessPlayerAction = httpsCallable(
-  functionsInstance,
+export const signInWithCredential = (
+  credential: firebase.auth.AuthCredential
+): Promise<firebase.auth.UserCredential> => {
+  return auth.signInWithCredential(credential);
+};
+
+export const createUserWithEmailAndPassword = (
+  email: string,
+  pass: string
+): Promise<firebase.auth.UserCredential> => {
+  return auth.createUserWithEmailAndPassword(email, pass);
+};
+
+export const signInWithEmailAndPassword = (
+  email: string,
+  pass: string
+): Promise<firebase.auth.UserCredential> => {
+  return auth.signInWithEmailAndPassword(email, pass);
+};
+
+export const signOut = (): Promise<void> => {
+  return auth.signOut();
+};
+
+export const onAuthStateChanged = (
+  callback: (user: firebase.User | null) => void
+): firebase.Unsubscribe => {
+  return auth.onAuthStateChanged(callback);
+};
+
+// updateProfile is a method on the User object in compat mode.
+// This export provides a helper and is correctly used.
+export const updateProfile = (
+  user: firebase.User,
+  profile: { displayName?: string | null; photoURL?: string | null }
+): Promise<void> => {
+  return user.updateProfile(profile);
+};
+
+export type User = firebase.User; // User type from compat
+
+// Callable functions (compat style using the specific instance)
+export const callCreateGameSession =
+  functionsInstance.httpsCallable("createGameSession");
+export const callJoinGameSession =
+  functionsInstance.httpsCallable("joinGameSession");
+export const callProcessPlayerAction = functionsInstance.httpsCallable(
   "processPlayerAction"
 );
 // Adicione outras funções callable conforme necessário

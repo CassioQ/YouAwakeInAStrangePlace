@@ -92,7 +92,9 @@ export interface GameSetupState {
   gmSkillsDefinedCount?: number;
 
   playerSkillModifiers?: { [playerId: string]: PlayerSkillModifierChoice[] };
-  playerModifierSelectionStatus?: { [playerId: string]: PlayerModifierSelectionStatus };
+  playerModifierSelectionStatus?: {
+    [playerId: string]: PlayerModifierSelectionStatus;
+  };
 }
 
 // Gameplay specific state
@@ -104,6 +106,7 @@ export interface PlayerGameplayState {
   currentHp: number;
   assignedSkills: PlayerSkillModifierChoice[]; // The 4 chosen skills with their modifiers
   interferenceTokens: number; // Added for interference tokens
+  isIncapacitated: boolean; // Added for incapacitated status
 }
 
 export interface GameLogEntry {
@@ -134,10 +137,10 @@ export interface GameServer {
   gmId: string;
   createdAt: FieldValue;
   players: PlayerInLobby[];
-  status: GameServerStatus; 
-  gamePhase?: GamePhase;     
+  status: GameServerStatus;
+  gamePhase?: GamePhase;
   lastActivityAt: FieldValue;
   gmLastSeenAt: FieldValue;
-  gameSetup?: GameSetupState | null; 
-  gameplay?: GameplayState;        
+  gameSetup?: GameSetupState | null;
+  gameplay?: GameplayState;
 }

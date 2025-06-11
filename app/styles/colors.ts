@@ -36,4 +36,9 @@ export const colors = {
   // Header
   headerBackground: "#f5f5f5",
   headerText: "#424242",
+
+  // HP Bar specific
+  hpBackground: "#e0e0e0",
+  hpDefaultFill: "#4caf50",
+  bonusHp: "#2196f3",
 };

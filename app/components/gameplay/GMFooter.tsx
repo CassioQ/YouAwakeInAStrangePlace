@@ -1,12 +1,21 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { colors } from '../../styles/colors';
-import { commonStyles } from '../../styles/commonStyles';
-import GMSkillsMenu from './GMSkillsMenu';
-import PlayerListModal from './PlayerListModal'; 
-import { DefinedSkill, PlayerGameplayState } from '../../models/GameServer.types';
-import { rollGenericDiceForGameplay } from '../../services/firebaseServices'; 
-import { showAppAlert } from '../../utils/alertUtils';
+import React, { useState, useContext } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { colors } from "../../styles/colors";
+import { commonStyles } from "../../styles/commonStyles";
+import GMSkillsMenu from "./GMSkillsMenu";
+import PlayerListModal from "./PlayerListModal";
+import {
+  DefinedSkill,
+  PlayerGameplayState,
+} from "../../models/GameServer.types";
+import { rollGenericDiceForGameplay } from "../../services/firebaseServices";
+import { showAppAlert } from "../../utils/alertUtils";
 
 interface GMFooterProps {
   allDefinedSkills: DefinedSkill[];
@@ -27,14 +36,15 @@ const GMFooter: React.FC<GMFooterProps> = ({
   const [isPlayerListVisible, setIsPlayerListVisible] = useState(false);
   const [rollingGenericDice, setRollingGenericDice] = useState(false);
 
-  const gmSkills = allDefinedSkills.filter(skill => skill.type === 'gm');
-
   const handleGenericRoll = async () => {
     setRollingGenericDice(true);
     try {
       await rollGenericDiceForGameplay(serverId, gmId, gmName);
     } catch (error: any) {
-      showAppAlert("Erro ao Rolar 2d6", error.message || "Não foi possível registrar a rolagem.");
+      showAppAlert(
+        "Erro ao Rolar 2d6",
+        error.message || "Não foi possível registrar a rolagem."
+      );
     } finally {
       setRollingGenericDice(false);
     }
@@ -44,45 +54,46 @@ const GMFooter: React.FC<GMFooterProps> = ({
     <>
       <View style={[styles.footerContainer, commonStyles.shadow]}>
         <View style={styles.leftSection}>
-            <TouchableOpacity 
-              onPress={() => setIsPlayerListVisible(true)} 
-              style={styles.iconButton} 
-              accessibilityLabel="Ver lista de jogadores e seus status"
-            >
-                 <Text style={styles.footerIconText}>👥</Text>
-            </TouchableOpacity>
-             <TouchableOpacity 
-                onPress={handleGenericRoll} 
-                style={styles.iconButton}
-                disabled={rollingGenericDice}
-                accessibilityLabel="Rolar 2d6 (dois dados de seis lados) como Mestre"
-             >
-                {rollingGenericDice ? 
-                    <ActivityIndicator size="small" color={colors.primary} /> : 
-                    <Text style={styles.genericRollText}>2d6</Text>
-                }
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setIsPlayerListVisible(true)}
+            style={styles.iconButton}
+            accessibilityLabel="Ver lista de jogadores e seus status"
+          >
+            <Text style={styles.footerIconText}>👥</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleGenericRoll}
+            style={styles.iconButton}
+            disabled={rollingGenericDice}
+            accessibilityLabel="Rolar 2d6 (dois dados de seis lados) como Mestre"
+          >
+            {rollingGenericDice ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.genericRollText}>2d6</Text>
+            )}
+          </TouchableOpacity>
         </View>
-        
+
         <View style={styles.centerSection}>
-            <Text style={styles.gmLabel}>MESTRE</Text>
+          <Text style={styles.gmLabel}>MESTRE</Text>
         </View>
 
         <View style={styles.rightSection}>
-            <TouchableOpacity 
-                style={styles.skillsButtonMain} 
-                onPress={() => setIsSkillsMenuVisible(true)}
-                accessibilityLabel="Abrir menu de habilidades do Mestre"
-            >
-                <Text style={styles.skillsButtonText}>SKILLS GM</Text> 
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.skillsButtonMain}
+            onPress={() => setIsSkillsMenuVisible(true)}
+            accessibilityLabel="Abrir menu de habilidades do Mestre"
+          >
+            <Text style={styles.skillsButtonText}>SKILLS</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
       <GMSkillsMenu
         isVisible={isSkillsMenuVisible}
         onClose={() => setIsSkillsMenuVisible(false)}
-        gmSkills={gmSkills}
+        availableSkills={allDefinedSkills}
         serverId={serverId}
         gmId={gmId}
         gmName={gmName}
@@ -92,6 +103,8 @@ const GMFooter: React.FC<GMFooterProps> = ({
         isVisible={isPlayerListVisible}
         onClose={() => setIsPlayerListVisible(false)}
         allPlayerStates={allPlayerStates}
+        isGMView={true} // Indicate this is the GM's view
+        serverId={serverId} // Pass serverId for GM actions
       />
     </>
   );
@@ -99,62 +112,62 @@ const GMFooter: React.FC<GMFooterProps> = ({
 
 const styles = StyleSheet.create({
   footerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: colors.backgroundPaper,
     paddingHorizontal: 10,
-    paddingVertical: 8, // Adjusted padding
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
-    minHeight: 60, // Slightly smaller than player footer
+    minHeight: 60,
   },
   leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   centerSection: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   rightSection: {
-     // alignItems: 'flex-end',
+    // alignItems: 'flex-end',
   },
   iconButton: {
     padding: 8,
-    marginHorizontal: 4, // Adjusted margin
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginHorizontal: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   footerIconText: {
-    fontSize: 24, // Slightly larger for GM
+    fontSize: 24,
     color: colors.textSecondary,
   },
   genericRollText: {
-    fontSize: 16, // Slightly larger for GM
+    fontSize: 16,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   gmLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.primary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   skillsButtonMain: {
     backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 20, 
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
     ...commonStyles.shadow,
   },
   skillsButtonText: {
     color: colors.primaryContrast,
-    fontSize: 12, // Slightly smaller to fit "SKILLS GM"
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
 

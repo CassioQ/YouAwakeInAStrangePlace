@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -17,7 +16,8 @@ import {
 } from "../../models/GameServer.types";
 import { ScreenEnum, GameLogEntryType } from "../../models/enums/CommomEnuns";
 import { colors } from "../../styles/colors";
-import GMFooter from "../../components/gameplay/GMFooter"; // Import GM Footer
+import GMFooter from "../../components/gameplay/GMFooter";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 const GMGameplayScreen: React.FC = () => {
   const context = useContext(AppContext);
@@ -66,7 +66,7 @@ const GMGameplayScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
-  
+
   const allDefinedSkills: DefinedSkill[] = activeGameSetup.definedSkills || [];
 
   const renderGameLog = () => {
@@ -77,56 +77,78 @@ const GMGameplayScreen: React.FC = () => {
         </Text>
       );
     }
-    return gameplayState.gameLog.map((entry: GameLogEntry) => (
-      <View
-        key={entry.id}
-        style={[
-          styles.logEntry,
-          entry.type === GameLogEntryType.SYSTEM && styles.logEntrySystem,
-          entry.type === GameLogEntryType.TOKEN && styles.logEntryToken,
-        ]}
-      >
-        <Text style={styles.logTimestamp}>
-          {entry.timestamp && typeof entry.timestamp === "object" && "toDate" in entry.timestamp
-            ? (entry.timestamp as { toDate: () => Date })
-                .toDate()
-                .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : "agora"}
-        </Text>
-        <Text style={styles.logMessage}>
-          <Text style={styles.logPlayerName}>
-            {entry.playerName || entry.type.toUpperCase()}:{" "}
+    return gameplayState.gameLog.map((entry: GameLogEntry) => {
+      let entrySpecificStyle = {};
+      switch (entry.type) {
+        case GameLogEntryType.SYSTEM:
+          entrySpecificStyle = styles.logEntrySystem;
+          break;
+        case GameLogEntryType.TOKEN:
+          entrySpecificStyle = styles.logEntryToken;
+          break;
+        case GameLogEntryType.ROLL:
+          entrySpecificStyle = styles.logEntryRoll;
+          break;
+        case GameLogEntryType.GENERIC_ROLL:
+          entrySpecificStyle = styles.logEntryGenericRoll;
+          break;
+        case GameLogEntryType.INFO:
+          entrySpecificStyle = styles.logEntryInfo;
+          break;
+        default:
+          break;
+      }
+      return (
+        <View key={entry.id} style={[styles.logEntryBase, entrySpecificStyle]}>
+          <Text style={styles.logTimestamp}>
+            {entry.timestamp &&
+            typeof entry.timestamp === "object" &&
+            "toDate" in entry.timestamp
+              ? (entry.timestamp as { toDate: () => Date })
+                  .toDate()
+                  .toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+              : "agora"}
           </Text>
-          {entry.message}
-        </Text>
-      </View>
-    ));
+          <Text style={styles.logMessage}>
+            <Text style={styles.logPlayerName}>
+              {entry.playerName || entry.type.toUpperCase()}:{" "}
+            </Text>
+            {entry.message}
+          </Text>
+        </View>
+      );
+    });
   };
 
   return (
-    <SafeAreaView style={styles.screenContainer}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.chatArea}
-          contentContainerStyle={styles.chatContentContainer}
-          keyboardShouldPersistTaps="handled"
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.screenContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
         >
-          {renderGameLog()}
-        </ScrollView>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.chatArea}
+            contentContainerStyle={styles.chatContentContainer}
+            keyboardShouldPersistTaps="handled"
+          >
+            {renderGameLog()}
+          </ScrollView>
 
-        <GMFooter
-          allDefinedSkills={allDefinedSkills}
-          serverId={activeServerDetails.id}
-          gmId={currentUser.uid}
-          gmName={currentUser.displayName || "Mestre"}
-          allPlayerStates={Object.values(gameplayState.playerStates)}
-        />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          <GMFooter
+            allDefinedSkills={allDefinedSkills}
+            serverId={activeServerDetails.id}
+            gmId={currentUser.uid}
+            gmName={currentUser.displayName || "Mestre"}
+            allPlayerStates={Object.values(gameplayState.playerStates)}
+          />
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 };
 
@@ -165,29 +187,44 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 20,
   },
-  logEntry: {
-    backgroundColor: colors.stone100,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+  logEntryBase: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 6,
-    marginBottom: 6,
+    marginBottom: 8,
+    backgroundColor: colors.white,
+    borderLeftWidth: 4,
+    borderColor: colors.divider,
   },
   logEntrySystem: {
-    backgroundColor: colors.secondary,
+    borderColor: colors.textSecondary,
+    backgroundColor: colors.stone100,
   },
   logEntryToken: {
-    backgroundColor: colors.primary + "33", 
     borderColor: colors.primary,
-    borderWidth: 1,
+    backgroundColor: colors.primary + "1A",
+  },
+  logEntryRoll: {
+    borderColor: colors.success,
+    backgroundColor: colors.success + "1A",
+  },
+  logEntryGenericRoll: {
+    borderColor: "#FFC107", // Amber/Yellow
+    backgroundColor: "#FFC107" + "1A",
+  },
+  logEntryInfo: {
+    borderColor: "#03A9F4", // Light Blue
+    backgroundColor: "#03A9F4" + "1A",
   },
   logTimestamp: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.textLight,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   logMessage: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
+    lineHeight: 20,
   },
   logPlayerName: {
     fontWeight: "bold",

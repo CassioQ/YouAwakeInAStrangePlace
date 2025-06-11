@@ -26,7 +26,8 @@ import GMLobbyScreen from "./pages/gm/GMLobbyScreen";
 import PlayerLobbyScreen from "./pages/player/PlayerLobbyScreen";
 import GameSetupScreen from "./pages/game_setup/GameSetupScreen";
 import GMGameSetupMonitorScreen from "./pages/game_setup/GMGameSetupMonitorScreen";
-import PlayerGameplayScreen from "./pages/gameplay/PlayerGameplayScreen"; // Added
+import PlayerGameplayScreen from "./pages/gameplay/PlayerGameplayScreen";
+import GMGameplayScreen from "./pages/gameplay/GMGameplayScreen"; // Ensure this is imported
 
 const AppContent: React.FC = () => {
   const context = useContext(AppContext);
@@ -39,7 +40,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  const { currentUser, isLoadingAuth, currentScreen, userRole } = context; // Added userRole for gameplay navigation
+  const { currentUser, isLoadingAuth, currentScreen, userRole } = context;
 
   if (isLoadingAuth) {
     return (
@@ -59,21 +60,21 @@ const AppContent: React.FC = () => {
       case ScreenEnum.EMAIL_SIGNUP:
         return <EmailSignUpScreen />;
       default:
-        console.log(
-          "[App.tsx] No user, defaulting to LOGIN screen from:",
-          ScreenEnum[currentScreen]
-        );
+        // console.log(
+        //   "[App.tsx] No user, defaulting to LOGIN screen from:",
+        //   ScreenEnum[currentScreen]
+        // );
         return <LoginScreen />;
     }
   }
 
-  // Log currentScreen for debugging
+  // Log currentScreen for debugging - this is the one reported to loop
   console.log(
-    "[App.tsx] Current Screen:",
+    "[App.tsx] Screen Render Cycle. Current Screen:",
     ScreenEnum[currentScreen],
     `(${currentScreen})`,
     "Role:",
-    userRole ? userRole : "None" // Changed UserRole to UserRoleEnum
+    userRole ? userRole : "None" // Corrected to use UserRoleEnum for string name
   );
 
   switch (currentScreen) {
@@ -91,10 +92,10 @@ const AppContent: React.FC = () => {
       return <GameSetupScreen />;
     case ScreenEnum.GAME_SETUP_GM_MONITOR:
       return <GMGameSetupMonitorScreen />;
-    case ScreenEnum.PLAYER_GAMEPLAY: // Added
+    case ScreenEnum.PLAYER_GAMEPLAY:
       return <PlayerGameplayScreen />;
-    // case ScreenEnum.GM_GAMEPLAY: // To be added
-    //   return <GMGameplayScreen />;
+    case ScreenEnum.GM_GAMEPLAY: // This line was commented out
+      return <GMGameplayScreen />;
     case ScreenEnum.CHARACTER_SHEET:
       return <CharacterSheetScreen />;
     default:
@@ -103,16 +104,17 @@ const AppContent: React.FC = () => {
         currentScreen === ScreenEnum.EMAIL_LOGIN ||
         currentScreen === ScreenEnum.EMAIL_SIGNUP
       ) {
-        console.log(
-          "[App.tsx] User logged in, was on login screen, navigating to HOME from:",
-          ScreenEnum[currentScreen]
-        );
-        return <HomeScreen />;
+        // console.log(
+        //   "[App.tsx] User logged in, was on login screen, navigating to HOME from:",
+        //   ScreenEnum[currentScreen]
+        // );
+        // This navigation should be handled by AppContext now
+        return <HomeScreen />; // Fallback, but context should manage this
       }
-      console.log(
-        "[App.tsx] User logged in, defaulting to HOME screen from unexpected screen:",
-        ScreenEnum[currentScreen]
-      );
+      // console.log(
+      //   "[App.tsx] User logged in, defaulting to HOME screen from unexpected screen:",
+      //   ScreenEnum[currentScreen]
+      // );
       return <HomeScreen />;
   }
 };
