@@ -39,3 +39,7 @@ yarn-error.*
 *.tsbuildinfo
 
 .env
+
+# webstorm
+.idea
+ios
