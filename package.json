@@ -6,7 +6,6 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "install": "npm install",
     "build": "npx expo export -p web",
     "start": "npx expo serve"
   },
