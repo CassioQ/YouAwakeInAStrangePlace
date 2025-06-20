@@ -2,12 +2,13 @@
   "name": "youawakeinastrangeplace",
   "version": "1.0.0",
   "main": "./app/index.ts",
+  "homepage": "/alpha",
   "scripts": {
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "npx expo export -p web",
-    "start": "npx expo serve"
+    "start": "serve -l 80 dist"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
