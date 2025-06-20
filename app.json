@@ -28,7 +28,8 @@
       "package": "com.yourawakening.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "publicPath": "/alpha/"
     },
     "plugins": [
       [
