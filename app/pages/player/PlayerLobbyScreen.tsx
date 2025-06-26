@@ -15,10 +15,10 @@ import { AppContext } from "../../contexts/AppContexts";
 import { PlayerInLobby, GameServer, GameServerStatus, GameSetupState, GameplayState } from "../../models/GameServer.types"; 
 import { 
   listenToLobbyPlayers, 
-  listenToServerStatusAndPhase, 
   leaveGameServer, 
   updateServerTimestamps 
-} from "../../services/firebaseServices";
+} from "../../services/serverManagementServices";
+import { listenToServerStatusAndPhase } from "../../services/gameSetupServices";
 import { ScreenEnum, UserRole, GamePhase } from "../../models/enums/CommomEnuns"; // Added GamePhase here
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";

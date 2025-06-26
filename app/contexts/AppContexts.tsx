@@ -33,8 +33,8 @@ import {
 import {
   fetchUserProfileData,
   updateUserActiveServerId as fbUpdateUserActiveServerId,
-  listenToServerStatusAndPhase,
-} from "../services/firebaseServices";
+} from "../services/userProfileServices";
+import { listenToServerStatusAndPhase } from "../services/gameSetupServices";
 import { showAppAlert } from "../utils/alertUtils";
 import { Unsubscribe } from "firebase/firestore"; // This type ( () => void ) is compatible
 

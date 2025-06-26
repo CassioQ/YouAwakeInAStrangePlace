@@ -11,7 +11,7 @@ import {
 import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import { DefinedSkill } from "../../models/GameServer.types";
-import { rollGmSkillForGameplay } from "../../services/firebaseServices";
+import { rollGmSkillForGameplay } from "../../services/gameplayServices";
 import { showAppAlert } from "../../utils/alertUtils";
 
 interface GMSkillsMenuProps {

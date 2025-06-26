@@ -14,7 +14,7 @@ import {
   DefinedSkill,
   PlayerGameplayState,
 } from "../../models/GameServer.types";
-import { rollGenericDiceForGameplay } from "../../services/firebaseServices";
+import { rollGenericDiceForGameplay } from "../../services/gameplayServices";
 import { showAppAlert } from "../../utils/alertUtils";
 
 interface GMFooterProps {

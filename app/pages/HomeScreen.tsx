@@ -10,7 +10,7 @@ import {
   deleteGameServer,
   leaveGameServer,
   updateServerTimestamps,
-} from "../services/firebaseServices";
+} from "../services/serverManagementServices";
 import { showAppAlert } from "../utils/alertUtils";
 
 const HomeScreen: React.FC = () => {

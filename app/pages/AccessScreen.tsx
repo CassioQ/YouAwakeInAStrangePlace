@@ -7,7 +7,7 @@ import { colors } from "../styles/colors";
 import { commonStyles } from "../styles/commonStyles";
 import { AppContext } from "../contexts/AppContexts";
 import { ScreenEnum } from "../models/enums/CommomEnuns";
-import { joinGameServer } from "../services/firebaseServices"; 
+import { joinGameServer } from "../services/serverManagementServices"; 
 import { GameServer } from "../models/GameServer.types";
 import { showAppAlert } from '../utils/alertUtils'; // Import the utility
 

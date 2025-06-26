@@ -12,7 +12,7 @@ import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import StyledInput from "../StyledInput";
 import StyledButton from "../StyledButton";
-import { updatePlayerCurrentHpSelf } from "../../services/firebaseServices";
+import { updatePlayerCurrentHpSelf } from "../../services/gameplayServices";
 import { showAppAlert } from "../../utils/alertUtils";
 
 interface PlayerHpEditModalProps {

@@ -22,10 +22,12 @@ import {
 import {
   listenToLobbyPlayers,
   getGameServerDetails,
+  updateServerTimestamps,
+} from "../../services/serverManagementServices";
+import {
   startGame,
   listenToServerStatusAndPhase,
-  updateServerTimestamps,
-} from "../../services/firebaseServices";
+} from "../../services/gameSetupServices";
 import {
   ScreenEnum,
   UserRole,

@@ -18,7 +18,7 @@ import {
   updatePlayerCurrentHpGM,
   updatePlayerInterferenceTokensGM,
   updatePlayerIncapacitatedStatusGM,
-} from "../../services/firebaseServices";
+} from "../../services/gameplayServices";
 import { showAppAlert } from "../../utils/alertUtils";
 
 interface GMPlayerControlModalProps {

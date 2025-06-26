@@ -19,7 +19,7 @@ import {
   PlayerGameplayState,
 } from "../../models/GameServer.types";
 import { AppContext } from "../../contexts/AppContexts";
-import { rollGenericDiceForGameplay } from "../../services/firebaseServices";
+import { rollGenericDiceForGameplay } from "../../services/gameplayServices";
 import { showAppAlert } from "../../utils/alertUtils";
 import PlayerHpEditModal from "./PlayerHpEditModal";
 

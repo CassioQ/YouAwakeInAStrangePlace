@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } fr
 import { colors } from '../../styles/colors';
 import { commonStyles } from '../../styles/commonStyles';
 import StyledButton from '../StyledButton';
-import { useInterferenceToken } from '../../services/firebaseServices';
+import { useInterferenceToken } from '../../services/gameplayServices';
 import { showAppAlert } from '../../utils/alertUtils';
 
 interface InterferenceTokenModalProps {

@@ -31,13 +31,14 @@ import {
   listenToGameSetup,
   addGmSkill,
   finalizeGmSkills,
-  initiateGameplaySession,
   listenToServerStatusAndPhase,
-} from "../../services/firebaseServices";
+} from "../../services/gameSetupServices";
+import { initiateGameplaySession } from "../../services/gameplayServices";
 import { Unsubscribe } from "firebase/firestore";
 import StyledButton from "../../components/StyledButton";
 import StyledInput from "../../components/StyledInput";
 import { showAppAlert } from "../../utils/alertUtils";
+import { getPlayerNameById } from "../../utils/playerUtils";
 
 const defaultAvatar =
   "https://ui-avatars.com/api/?name=P&background=random&size=40";
@@ -96,14 +97,6 @@ const GMGameSetupMonitorScreen: React.FC = () => {
     setGameplayState,
     navigateTo,
   ]); // Added activeServerDetails to dependency array for correct update
-
-  const getPlayerNameById = (playerId: string): string => {
-    if (playerId === activeServerDetails?.gmId) return "Mestre";
-    const player = activeServerDetails?.players.find(
-      (p) => p.userId === playerId
-    );
-    return player?.playerName || "Jogador Desconhecido";
-  };
 
   const handleAddGmSkill = async () => {
     if (!activeServerDetails?.id || !currentUser || !gmSkillInput.trim())
@@ -208,7 +201,10 @@ const GMGameSetupMonitorScreen: React.FC = () => {
   }
 
   const currentPlayerDefiningName = activeGameSetup.currentPlayerIdToDefine
-    ? getPlayerNameById(activeGameSetup.currentPlayerIdToDefine)
+    ? getPlayerNameById(
+        activeGameSetup.currentPlayerIdToDefine,
+        activeServerDetails
+      )
     : activeGameSetup.currentPhase ===
           GameSetupPhase.DEFINING_CHARACTER_CONCEPTS ||
         activeGameSetup.currentPhase ===

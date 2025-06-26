@@ -14,7 +14,7 @@ import {
   PlayerSkillModifierChoice,
   DefinedSkill,
 } from "../../models/GameServer.types";
-import { rollSkillDiceForGameplay } from "../../services/firebaseServices";
+import { rollSkillDiceForGameplay } from "../../services/gameplayServices";
 import { showAppAlert } from "../../utils/alertUtils";
 
 interface SkillsMenuProps {

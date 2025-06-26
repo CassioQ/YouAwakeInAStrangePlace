@@ -7,7 +7,7 @@ import { colors } from "../../styles/colors";
 import { commonStyles } from "../../styles/commonStyles";
 import { AppContext } from "../../contexts/AppContexts";
 import { ScreenEnum } from "../../models/enums/CommomEnuns";
-import { createGameServer } from "../../services/firebaseServices";
+import { createGameServer } from "../../services/serverManagementServices";
 import { showAppAlert } from '../../utils/alertUtils'; // Import the utility
 
 const CreateServerScreen: React.FC = () => {
