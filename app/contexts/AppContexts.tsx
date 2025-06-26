@@ -26,7 +26,6 @@ import {
   FacebookAuthProvider,
   signInWithCredential,
   signOut as firebaseSignOut,
-  updateProfile as firebaseUpdateProfile,
   db, // Use the compat db instance from firebase.ts
 } from "../../firebase";
 
@@ -35,7 +34,7 @@ import {
   updateUserActiveServerId as fbUpdateUserActiveServerId,
 } from "../services/userProfileServices";
 import { listenToServerStatusAndPhase } from "../services/gameSetupServices";
-import { showAppAlert } from "../utils/alertUtils";
+import { showAppAlert, setWebShowAlert } from "../utils/alertUtils"; // Import setWebShowAlert
 import { Unsubscribe } from "firebase/firestore"; // This type ( () => void ) is compatible
 
 // Expo Auth Session
@@ -51,6 +50,8 @@ import {
 } from "@env";
 
 import * as AuthSession from "expo-auth-session";
+
+import { AppAlertProvider, useAppAlert } from './AppAlertContext'; // Import AppAlertProvider and useAppAlert
 
 console.log("Redirect URI for AuthSession:", AuthSession.makeRedirectUri());
 
@@ -75,7 +76,7 @@ interface AppProviderProps {
   children?: ReactNode;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
+const AppContentProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [userProfile, setUserProfileState] = useState<UserProfile | null>(null);
@@ -238,18 +239,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         showAppAlert("Erro de Login", "Token do Google não recebido.");
         setIsLoadingAuth(false);
       }
-    } else if (
-      googleResponse?.type === "error" ||
-      googleResponse?.type === "cancel" ||
-      googleResponse?.type === "dismiss"
-    ) {
-      if (
-        googleResponse?.type !== "cancel" &&
-        googleResponse?.type !== "dismiss"
-      ) {
-        showAppAlert("Erro de Login", "Falha ao autenticar com Google.");
-      }
-      setIsLoadingAuth(false);
     }
   }, [googleResponse]);
 
@@ -271,18 +260,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         showAppAlert("Erro de Login", "Token do Facebook não recebido.");
         setIsLoadingAuth(false);
       }
-    } else if (
-      facebookResponse?.type === "error" ||
-      facebookResponse?.type === "cancel" ||
-      facebookResponse?.type === "dismiss"
-    ) {
-      if (
-        facebookResponse?.type !== "cancel" &&
-        facebookResponse?.type !== "dismiss"
-      ) {
-        showAppAlert("Erro de Login", "Falha ao autenticar com Facebook.");
-      }
-      setIsLoadingAuth(false);
     }
   }, [facebookResponse]);
 
@@ -320,11 +297,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               currentScreen !== ScreenEnum.GM_GAMEPLAY
             ) {
               navigateTo(ScreenEnum.GM_GAMEPLAY);
-            } else if (
-              userRole === UserRole.PLAYER &&
-              currentScreen !== ScreenEnum.PLAYER_GAMEPLAY
-            ) {
-              navigateTo(ScreenEnum.PLAYER_GAMEPLAY);
             }
           } else if (gamePhase === GamePhase.SETUP && gameSetupData) {
             if (
@@ -332,11 +304,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               currentScreen !== ScreenEnum.GAME_SETUP_GM_MONITOR
             ) {
               navigateTo(ScreenEnum.GAME_SETUP_GM_MONITOR);
-            } else if (
-              userRole === UserRole.PLAYER &&
-              currentScreen !== ScreenEnum.GAME_SETUP_PLAYER
-            ) {
-              navigateTo(ScreenEnum.GAME_SETUP_PLAYER);
             }
           } else if (gamePhase === GamePhase.LOBBY) {
             if (
@@ -344,11 +311,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               currentScreen !== ScreenEnum.GM_LOBBY
             ) {
               navigateTo(ScreenEnum.GM_LOBBY);
-            } else if (
-              userRole === UserRole.PLAYER &&
-              currentScreen !== ScreenEnum.PLAYER_LOBBY
-            ) {
-              navigateTo(ScreenEnum.PLAYER_LOBBY);
             }
           } else if (gamePhase === GamePhase.ENDED) {
             showAppAlert(
@@ -563,5 +525,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     >
       {children}
     </AppContext.Provider>
+  );
+};
+
+export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
+  const { showAlert } = useAppAlert();
+
+  useEffect(() => {
+    setWebShowAlert(showAlert);
+  }, [showAlert]);
+
+  return (
+    <AppAlertProvider>
+      <AppContentProvider>{children}</AppContentProvider>
+    </AppAlertProvider>
   );
 };
